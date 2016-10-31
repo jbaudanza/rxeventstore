@@ -3,7 +3,7 @@ import Rx from 'rxjs';
 
 function collectFromChannel(channel) {
   return channel
-    .bufferTime(500)
+    .bufferTime(400)
     .take(1)
     .toPromise()
 }
@@ -18,10 +18,9 @@ export function itShouldActLikeANotifier(notifierFactory) {
 
     const promise = Promise.all([
       collectFromChannel(notifier.channel('foo')),
-      collectFromChannel(notifier.channel('bar'))
+      collectFromChannel(notifier.channel('bar')),
+      wait(100).then( () => notifier.notify('foo', 'hello') )
     ]);
-
-    notifier.notify('foo', 'hello');
 
     return promise.then(function([foo, bar]) {
       assert.deepEqual(foo, ['hello']);
