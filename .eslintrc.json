@@ -1,0 +1,23 @@
+{
+    "extends": "airbnb",
+    "parser": "babel-eslint",
+    "parserOptions": {
+         "sourceType": "module"
+    },
+    "env": {
+        "mocha": true,
+        "node": true
+    },
+    "plugins": [
+        "react"
+    ],
+    "rules": {
+        "strict": 0,
+        "semi": [2, "never"],
+        "arrow-body-style": ["off", "always"],
+        "no-console": 0,
+        "eol-last": "off",
+        "quotes": [2, "single", {"avoidEscape": true, "allowTemplateLiterals": true}],
+        "no-underscore-dangle": ["error", { "allowAfterThis": true }]
+        }
+}
