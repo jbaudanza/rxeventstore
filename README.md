@@ -5,6 +5,7 @@ require('rxpersist/database/redis')
 require('rxpersist/database/memory')
 require('rxpersist/database/sqlite')
 require('rxpersist/database/indexdb')
+require('rxpersist/database/kafka')
 require('rxpersist/batching')
 
 

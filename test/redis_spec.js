@@ -12,7 +12,7 @@ function factory() {
 }
 
 
-describe.only('RedisDatabase', () => {
+describe('RedisDatabase', () => {
   itShouldActLikeANotifier(factory);
-  //itShouldActLikeAnEventStore(factory);
+  itShouldActLikeAnEventStore(factory);
 });

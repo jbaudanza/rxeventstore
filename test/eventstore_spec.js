@@ -3,8 +3,12 @@ import uuid from 'node-uuid';
 
 import {times} from 'lodash';
 
-function insertEvents(eventStore, key, count) {
-  return eventStore.insertEvents(key, times(count));
+function insertEvents(eventStore, key, count, iteratee) {
+  return eventStore.insertEvents(key, times(count, iteratee));
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function itShouldActLikeAnEventStore(eventStoreFactory) {
@@ -15,21 +19,23 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
     insertEvents(eventStore, key, 3);
 
     const observable = eventStore.observable(key);
+    const results = [];
 
-    return observable
-      .take(1)
-      .toPromise()
-      .then(function(results) {
-        assert.equal(results.length, 3);
+    observable.subscribe(function(batch) {
+      results.push(batch);
+    });
 
-        // Insert some more events and check to make sure they are also
-        // streamed
-        return insertEvents(eventStore, key, 3);
-      })
-      .then(() => observable.take(1).toPromise())
-      .then((results) => {
-        assert.equal(results.length, 6);
-      });
+    return wait(50).then(() => {
+      assert.deepEqual([[0,1,2]], results);
+
+      // Insert some more events and check to make sure they are also
+      // streamed
+      return insertEvents(eventStore, key, 3, (x) => x + 3)
+    })
+    .then(() => wait(50))
+    .then(() => {
+      assert.deepEqual([[0,1,2], [3,4,5]], results);
+    });
   });
 
   it('should return a set of results and then end', () => {
@@ -40,7 +46,7 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
     return inserts.then(() => (
       eventStore.observable(key, {stream: false})
         .forEach((results) => {
-          assert.equal(results.length, 3);
+          assert.deepEqual(results, [0,1,2]);
         })
     ));
   });
@@ -74,9 +80,10 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
         .forEach((results) => {
           assert.equal(3, results.length);
 
-          const [value, meta] = results[0];
-          assert('id' in meta);
-          assert('timestamp' in meta);
+          assert(results[0]);
+          assert('timestamp' in results[0]);
+          assert('processId' in results[0]);
+          assert.equal(results[0].value, 0);
         })
     ));
   });

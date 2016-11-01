@@ -116,6 +116,7 @@ export default class PgDatabase {
 
     if (options.stream) {
       const channel = this.channel(key);
+      // TODO: See if we can reuse the streamQuery that the redis client uses
       observable = streamQuery(options.offset, channel, (minId, offset) => (
           query(this.pool, ...buildQuery(minId, offset))
             .then(r => r.rows)
@@ -252,9 +253,7 @@ function streamQuery(offset, channel, fn) {
         (error) => observer.error(error)
       );
 
-    const subscription = channel.flatMap(poll).subscribe(observer);
-
-    return () => subscription.unsubscribe();
+    return channel.flatMap(poll).subscribe(observer);
   });
 }
 
