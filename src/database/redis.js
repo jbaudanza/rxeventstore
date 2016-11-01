@@ -4,7 +4,9 @@ import Rx from 'rxjs';
 import processId from '../processId';
 import streamQuery from './streamQuery';
 
-import {defaults} from 'lodash';
+import {defaults, identity} from 'lodash';
+import {toFunction} from './filters';
+
 
 function promisify(object, ...methods) {
   const properties = {};
@@ -118,9 +120,7 @@ export default class RedisDatabase {
     }
 
     function transformResults(results) {
-      return results.reverse().map(JSON.parse).map(
-        (o) => options.includeMetadata ? o : o.value
-      );
+      return results.reverse().map(JSON.parse);
     }
 
     function nextCursor(lastCursor, results) {
@@ -129,6 +129,23 @@ export default class RedisDatabase {
 
     const initialCursor = -1 - options.offset;
 
+    // TODO: Maybe we want to add a batchedFilter operator to batches.js
+    let filterBatchFn;
+    if (typeof options.filters === 'object') {
+      filterBatchFn = function(batch) {
+        return batch.filter(toFunction(options.filters));
+      };
+    } else {
+      filterBatchFn = identity;
+    }
+
+    let removeMetadata;
+    if (options.includeMetadata) {
+      removeMetadata = identity;
+    } else {
+      removeMetadata = (batch) => batch.map(o => o.value);
+    }
+
     if (options.stream) {
       return streamQuery(
           query,
@@ -136,9 +153,15 @@ export default class RedisDatabase {
           initialCursor,
           nextCursor,
           transformResults
-      ).filter(batch => batch.length > 0);
+      )
+      .map(filterBatchFn)
+      .map(removeMetadata)
+      .filter(batch => batch.length > 0);
     } else {
-      return Rx.Observable.fromPromise(query(initialCursor).then(transformResults));
+      return Rx.Observable.fromPromise(
+          query(initialCursor)
+            .then((results) => removeMetadata(filterBatchFn(transformResults(results))))
+      );
     }
   }
 
