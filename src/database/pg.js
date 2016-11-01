@@ -266,23 +266,24 @@ function underscoreToCamel(input) {
 }
 
 function transformEvent(row) {
-  const meta = {
+  const obj = {
     id: row.id,
-    timestamp: row.timestamp
+    timestamp: row.timestamp,
+    value: row.data.v
   };
 
   if (row.process_id) {
-    meta.processId = row.process_id;
+    obj.processId = row.process_id;
   }
 
   if (row.session_id) {
-    meta.sessionId = row.session_id;
+    obj.sessionId = row.session_id;
   }
 
   if (row.actor) {
-    meta.actor = Object.assign({}, row.actor);
-    delete meta.actor.iat;
+    obj.actor = Object.assign({}, row.actor);
+    delete obj.actor.iat;
   }
 
-  return [row.data.v, meta];
+  return obj;
 }
