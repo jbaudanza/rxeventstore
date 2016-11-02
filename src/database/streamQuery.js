@@ -3,19 +3,37 @@ import Rx from 'rxjs';
 export default function streamQuery(queryFn, notifier, initialCursor, cursorFn, resultsFn) {
   return Rx.Observable.create(function(observer) {
     let cursor = initialCursor;
+    let inFlight = false;
+    let shouldRequest = false;
+
     const onError = observer.error.bind(observer);
 
     function runQuery() {
-      const cursorSnapshot = cursor;
+      inFlight = true;
+      shouldRequest = false;
+
       queryFn(cursor).then(function(result) {
-        observer.next(resultsFn(result, cursorSnapshot, cursor));
+        inFlight = false;
+        observer.next(resultsFn(result, cursor));
         cursor = cursorFn(cursor, result);
+
+        if (shouldRequest) {
+          runQuery();
+        }
       },
       onError);
     }
 
     runQuery();
 
-    return notifier.subscribe({next: runQuery, error: onError});
+    function next() {
+      if (inFlight) {
+        shouldRequest = true;
+      } else {
+        runQuery();
+      }
+    }
+
+    return notifier.subscribe({next: next, error: onError});
   });
 }

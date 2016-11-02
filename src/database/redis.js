@@ -119,17 +119,6 @@ export default class RedisDatabase {
       return redis.lrange(key, 0, (-1 - cursor));
     }
 
-    function transformStreamResults(results, resultCursor, currentCursor) {
-      results = transformResults(results);
-
-      const clip = currentCursor - resultCursor;
-      if (clip > 0) {
-        return results.slice(clip);
-      } else {
-        return results;
-      }
-    }
-
     function transformResults(results) {
       return results.reverse().map(JSON.parse);
     }
@@ -163,7 +152,7 @@ export default class RedisDatabase {
           this.channel(key),
           initialCursor,
           nextCursor,
-          transformStreamResults
+          transformResults
       )
       .map(filterBatchFn)
       .map(removeMetadata)

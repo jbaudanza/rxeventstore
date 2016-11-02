@@ -1,7 +1,7 @@
 import assert from 'assert';
 import uuid from 'node-uuid';
 
-import {times} from 'lodash';
+import {times, flatten} from 'lodash';
 
 function insertEvents(eventStore, key, count, iteratee) {
   return eventStore.insertEvents(key, times(count, iteratee));
@@ -139,13 +139,13 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
     ));
   });
 
-  it('should handle multiple events insterted in parallel', () => {
+  it('should handle multiple events inserted in parallel', () => {
     const key = uuid.v4();
     const eventStore = eventStoreFactory();
 
     const obs = eventStore.observable(key);
 
-    const results = [];
+    let results = [];
 
     // These will all happen at the same time, with no guarantee about ordering
     const inserts = Promise.all([
@@ -158,23 +158,23 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
       results.push(batch);
     });
 
-    return wait(50).then(function() {
-      assert.equal(results.length, 1);
-      assert.deepEqual(results[0].sort(), [1,2,3]);
+    return inserts
+      .then(() => wait(50))
+      .then(function() {
+        assert.deepEqual(flatten(results).sort(), [1,2,3]);
+        results = [];
 
-      return Promise.all([
-        eventStore.insertEvent(key, 4),
-        eventStore.insertEvent(key, 5),
-        eventStore.insertEvent(key, 6)
-      ])
-    })
-    .then(() => wait(50))
-    .then(function() {
-      assert.equal(results.length, 2);
-      assert.deepEqual(results[0].sort(), [1,2,3]);
-      assert.deepEqual(results[1].sort(), [4,5,6]);
-    })
-
+        return Promise.all([
+          eventStore.insertEvent(key, 4),
+          eventStore.insertEvent(key, 5),
+          eventStore.insertEvent(key, 6)
+        ]);
+      })
+      .then(() => wait(50))
+      .then(function() {
+        assert.deepEqual(flatten(results).sort(), [4,5,6]);
+        results = [];
+      });
   });
 
 }
