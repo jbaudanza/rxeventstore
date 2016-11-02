@@ -6,9 +6,10 @@ export default function streamQuery(queryFn, notifier, initialCursor, cursorFn, 
     const onError = observer.error.bind(observer);
 
     function runQuery() {
+      const cursorSnapshot = cursor;
       queryFn(cursor).then(function(result) {
+        observer.next(resultsFn(result, cursorSnapshot, cursor));
         cursor = cursorFn(cursor, result);
-        observer.next(resultsFn(result));
       },
       onError);
     }

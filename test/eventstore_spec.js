@@ -137,6 +137,44 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
           assert.deepEqual(results, [2,3,4]);
         })
     ));
+  });
+
+  it('should handle multiple events insterted in parallel', () => {
+    const key = uuid.v4();
+    const eventStore = eventStoreFactory();
+
+    const obs = eventStore.observable(key);
+
+    const results = [];
+
+    // These will all happen at the same time, with no guarantee about ordering
+    const inserts = Promise.all([
+      eventStore.insertEvent(key, 1),
+      eventStore.insertEvent(key, 2),
+      eventStore.insertEvent(key, 3)
+    ]);
+
+    obs.subscribe(function(batch) {
+      results.push(batch);
+    });
+
+    return wait(50).then(function() {
+      assert.equal(results.length, 1);
+      assert.deepEqual(results[0].sort(), [1,2,3]);
+
+      return Promise.all([
+        eventStore.insertEvent(key, 4),
+        eventStore.insertEvent(key, 5),
+        eventStore.insertEvent(key, 6)
+      ])
+    })
+    .then(() => wait(50))
+    .then(function() {
+      assert.equal(results.length, 2);
+      assert.deepEqual(results[0].sort(), [1,2,3]);
+      assert.deepEqual(results[1].sort(), [4,5,6]);
+    })
 
   });
+
 }

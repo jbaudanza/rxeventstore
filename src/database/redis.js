@@ -116,7 +116,18 @@ export default class RedisDatabase {
     const redis = this.redisClient;
 
     function query(cursor) {
-      return redis.lrange(key, 0, cursor);
+      return redis.lrange(key, 0, (-1 - cursor));
+    }
+
+    function transformStreamResults(results, resultCursor, currentCursor) {
+      results = transformResults(results);
+
+      const clip = currentCursor - resultCursor;
+      if (clip > 0) {
+        return results.slice(clip);
+      } else {
+        return results;
+      }
     }
 
     function transformResults(results) {
@@ -124,10 +135,10 @@ export default class RedisDatabase {
     }
 
     function nextCursor(lastCursor, results) {
-      return lastCursor - results.length;
+      return lastCursor + results.length;
     }
 
-    const initialCursor = -1 - options.offset;
+    const initialCursor = options.offset;
 
     // TODO: Maybe we want to add a batchedFilter operator to batches.js
     let filterBatchFn;
@@ -152,7 +163,7 @@ export default class RedisDatabase {
           this.channel(key),
           initialCursor,
           nextCursor,
-          transformResults
+          transformStreamResults
       )
       .map(filterBatchFn)
       .map(removeMetadata)
