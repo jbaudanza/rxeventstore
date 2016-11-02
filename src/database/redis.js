@@ -158,6 +158,7 @@ export default class RedisDatabase {
       .map(removeMetadata)
       .filter(batch => batch.length > 0);
     } else {
+      // TODO: This will only run once
       return Rx.Observable.fromPromise(
           query(initialCursor)
             .then((results) => removeMetadata(filterBatchFn(transformResults(results))))

@@ -2,10 +2,12 @@ import url from 'url';
 
 import Rx from 'rxjs';
 import Pool from 'pg-pool';
-import {defaults, mapKeys} from 'lodash';
+import {defaults, mapKeys, identity, maxBy} from 'lodash';
 
 import processId from '../processId';
 import {toSQL} from './filters';
+import streamQuery from './streamQuery';
+
 
 export default class PgDatabase {
   constructor(databaseURL, config) {
@@ -90,6 +92,8 @@ export default class PgDatabase {
 
     defaults(options, {includeMetadata: false, stream: true, offset: 0});
 
+    const pool = this.pool;
+
     function buildQuery(minId, offset) {
       let filters = Object.assign({key: key, id: {$gt: minId}}, options.filters);
 
@@ -105,6 +109,11 @@ export default class PgDatabase {
       ];
     }
 
+    function runQuery(minId) {
+      const offset = minId > 0 ? 0 : options.offset;
+      return query(pool, ...buildQuery(minId, offset)).then(r => r.rows)
+    }
+
     let observable;
     let transformFn;
 
@@ -114,23 +123,23 @@ export default class PgDatabase {
       transformFn = (row) => row.data.v;
     }
 
+    function nextCursor(lastCursor, result) {
+      if (result.length > 0)
+        return maxBy(result, (row) => row.id).id;
+      else
+        return lastCursor;
+    }
+
     if (options.stream) {
       const channel = this.channel(key);
-      // TODO: See if we can reuse the streamQuery that the redis client uses
-      observable = streamQuery(options.offset, channel, (minId, offset) => (
-          query(this.pool, ...buildQuery(minId, offset))
-            .then(r => r.rows)
-          ));
+      observable = streamQuery(runQuery, channel, 0, nextCursor, identity);
     } else {
       observable = Rx.Observable.create((observer) => {
-        query(this.pool, ...buildQuery(0, options.offset))
-            .then(
-              function(r) { observer.next(r.rows); observer.complete(); },
-              function(error) { observer.error(error); }
-            )
+        return Rx.Observable.fromPromise(runQuery(0)).subscribe(observer);
       });
     }
 
+    // TODO: This might not allow us to return 0 results when not streaming
     return observable
         .filter(batch => batch.length > 0)
         .map(batch => batch.map(transformFn));
@@ -220,42 +229,42 @@ function configFromURL(urlString) {
 }
 
 
-function streamQuery(offset, channel, fn) {
-  return Rx.Observable.create(function(observer) {
-    let maxIdReturned = 0;
+// function streamQuery(offset, channel, fn) {
+//   return Rx.Observable.create(function(observer) {
+//     let maxIdReturned = 0;
 
-    function poll() {
-      return fn(maxIdReturned, offset).then(function(results) {
-        let maxIdInBatch = 0;
+//     function poll() {
+//       return fn(maxIdReturned, offset).then(function(results) {
+//         let maxIdInBatch = 0;
 
-        const filteredResults = [];
+//         const filteredResults = [];
 
-        results.forEach(function(record) {
-          if (record.id > maxIdInBatch)
-            maxIdInBatch = record.id;
+//         results.forEach(function(record) {
+//           if (record.id > maxIdInBatch)
+//             maxIdInBatch = record.id;
 
-          if (record.id > maxIdReturned) {
-            filteredResults.push(record);
-            offset = 0;
-          }
-        });
+//           if (record.id > maxIdReturned) {
+//             filteredResults.push(record);
+//             offset = 0;
+//           }
+//         });
 
-        if (maxIdInBatch > maxIdReturned)
-          maxIdReturned = maxIdInBatch;
+//         if (maxIdInBatch > maxIdReturned)
+//           maxIdReturned = maxIdInBatch;
 
-        return filteredResults;
-      });
-    }
+//         return filteredResults;
+//       });
+//     }
 
-    poll()
-      .then(
-        (results) => observer.next(results),
-        (error) => observer.error(error)
-      );
+//     poll()
+//       .then(
+//         (results) => observer.next(results),
+//         (error) => observer.error(error)
+//       );
 
-    return channel.flatMap(poll).subscribe(observer);
-  });
-}
+//     return channel.flatMap(poll).subscribe(observer);
+//   });
+// }
 
 function camelToUnderscore(input) {
   return input.replace(/([A-Z])/g, ($1) => "_"+$1.toLowerCase());
