@@ -27,6 +27,9 @@ function promisify(object, ...methods) {
   return Object.create(object, properties);
 }
 
+function transformResults(results) {
+  return results.reverse().map(JSON.parse);
+}
 
 export default class RedisDatabase {
   constructor(url) {
@@ -106,21 +109,46 @@ export default class RedisDatabase {
     return promise;
   }
 
+  query(key, options={}) {
+    if (typeof options === 'number') {
+      options = {offset: options};
+    }
+    defaults(options, {includeMetadata: false, offset: 0});
+
+    // TODO: Maybe we want to add a batchedFilter operator to batches.js
+    let filterBatchFn;
+    if (typeof options.filters === 'object') {
+      filterBatchFn = function(batch) {
+        return batch.filter(toFunction(options.filters));
+      };
+    } else {
+      filterBatchFn = identity;
+    }
+
+    let removeMetadata;
+    if (options.includeMetadata) {
+      removeMetadata = identity;
+    } else {
+      removeMetadata = (batch) => batch.map(o => o.value);
+    }
+
+    return this.redisClient.lrange(key, 0, (-1 - options.offset))
+      .then((results) => (
+        removeMetadata(filterBatchFn(transformResults(results)))
+      ))
+  }
+
   observable(key, options={}) {
     // TODO: This is shared with PG. Maybe make a defaultObservableOptions() function
     if (typeof options === 'number') {
       options = {offset: options};
     }
-    defaults(options, {includeMetadata: false, stream: true, offset: 0});
+    defaults(options, {includeMetadata: false, offset: 0});
 
     const redis = this.redisClient;
 
     function query(cursor) {
       return redis.lrange(key, 0, (-1 - cursor));
-    }
-
-    function transformResults(results) {
-      return results.reverse().map(JSON.parse);
     }
 
     function nextCursor(lastCursor, results) {
@@ -146,24 +174,16 @@ export default class RedisDatabase {
       removeMetadata = (batch) => batch.map(o => o.value);
     }
 
-    if (options.stream) {
-      return streamQuery(
-          query,
-          this.channel(key),
-          initialCursor,
-          nextCursor,
-          transformResults
+    return streamQuery(
+        query,
+        this.channel(key),
+        initialCursor,
+        nextCursor,
+        transformResults
       )
       .map(filterBatchFn)
       .map(removeMetadata)
       .filter(batch => batch.length > 0);
-    } else {
-      // TODO: This will only run once
-      return Rx.Observable.fromPromise(
-          query(initialCursor)
-            .then((results) => removeMetadata(filterBatchFn(transformResults(results))))
-      );
-    }
   }
 
 }

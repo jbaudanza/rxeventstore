@@ -80,22 +80,15 @@ export default class PgDatabase {
     });
   }
 
-  /*
-   * options: 
-   *   includeMetadata: (default false)
-   *   stream: (default true)
-   */
-  observable(key, options={}) {
+  query(key, options={}) {
     if (typeof options === 'number') {
       options = {offset: options};
     }
 
-    defaults(options, {includeMetadata: false, stream: true, offset: 0});
+    defaults(options, {includeMetadata: false, offset: 0});
 
-    const pool = this.pool;
-
-    function buildQuery(minId, offset) {
-      let filters = Object.assign({key: key, id: {$gt: minId}}, options.filters);
+    function buildQuery(offset) {
+      let filters = Object.assign({key: key}, options.filters);
 
       // Convert the filter keys into underscores
       filters = mapKeys(filters, (v, k) => camelToUnderscore(k));
@@ -109,19 +102,28 @@ export default class PgDatabase {
       ];
     }
 
-    function runQuery(minId) {
-      const offset = minId > 0 ? 0 : options.offset;
-      return query(pool, ...buildQuery(minId, offset)).then(r => r.rows)
-    }
-
-    let observable;
     let transformFn;
-
     if (options.includeMetadata) {
       transformFn = transformEvent;
     } else {
       transformFn = (row) => row.data.v;
     }
+
+    return query(this.pool, ...buildQuery(options.offset))
+        .then(r => r.rows.map(transformFn))
+  }
+
+  /*
+   * options:
+   *   includeMetadata: (default false)
+   *   offset: (default 0)
+   */
+  observable(key, options={}) {
+    if (typeof options === 'number') {
+      options = {offset: options};
+    }
+
+    defaults(options, {offset: 0});
 
     function nextCursor(lastCursor, result) {
       if (result.length > 0)
@@ -130,19 +132,27 @@ export default class PgDatabase {
         return lastCursor;
     }
 
-    if (options.stream) {
-      const channel = this.channel(key);
-      observable = streamQuery(runQuery, channel, 0, nextCursor, identity);
-    } else {
-      observable = Rx.Observable.create((observer) => {
-        return Rx.Observable.fromPromise(runQuery(0)).subscribe(observer);
+    function runQuery(minId) {
+      const filters = Object.assign({}, options.filters, {id: {$gt: minId}});
+      const localOptions = Object.assign({}, options, {
+        offset: (minId > 0) ? 0 : options.offset,
+        filters: filters,
+        includeMetadata: true
       });
+      return this.query(key, localOptions);
     }
 
-    // TODO: This might not allow us to return 0 results when not streaming
-    return observable
+    let transformFn;
+    if (options.includeMetadata) {
+      transformFn = identity;
+    } else {
+      transformFn = (batch) => batch.map((row) => row.value);
+    }
+
+    const channel = this.channel(key);
+    return streamQuery(runQuery.bind(this), channel, 0, nextCursor, identity)
         .filter(batch => batch.length > 0)
-        .map(batch => batch.map(transformFn));
+        .map(transformFn);
   }
 
   // Note: this won't guarantee the order of insertion. If this is important,
