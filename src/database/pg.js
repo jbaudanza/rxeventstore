@@ -192,6 +192,39 @@ export default class PgDatabase {
     });
   }
 
+  shouldThrottle(filters, windowSize, maxCount) {
+    // Convert the filter keys into underscores
+    filters = mapKeys(filters, (v, k) => camelToUnderscore(k));
+
+    const [filterWhere, filterValues] = toSQL(filters);
+
+    const ageSql = `(NOW() - cast($${filterValues.length + 1} AS interval))`;
+
+    const sql = `
+      SELECT
+        COUNT(*) AS count, (MIN(timestamp) - ${ageSql}) AS retryAfter
+        FROM events
+        WHERE ${filterWhere} AND timestamp > ${ageSql}
+    `;
+
+    const p = this.pool.connect().then((client) => (
+      client.query(sql, filterValues.concat(windowSize))
+    ));
+
+    return p.then(r => (
+      r.rows[0].count >= maxCount) ? r.rows[0].retryafter.seconds : null
+    );
+  }
+
+  throttled(filters, windowSize, count, fn) {
+    return this.shouldThrottle(filters, windowSize, count).then(function(retryAfter) {
+      if (retryAfter == null) {
+        return fn();
+      } else {
+        return Promise.reject({retryAfter: retryAfter});
+      }
+    });
+  }
 }
 
 
