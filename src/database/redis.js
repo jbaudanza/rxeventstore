@@ -31,6 +31,25 @@ function transformResults(results) {
   return results.reverse().map(JSON.parse);
 }
 
+function postProcessFunction(options) {
+  let filterBatchFn;
+  if (typeof options.filters === 'object') {
+    filterBatchFn = (batch) => batch.filter(toFunction(options.filters));
+  } else {
+    filterBatchFn = identity;
+  }
+
+  let removeMetadata;
+  if (options.includeMetadata) {
+    removeMetadata = identity;
+  } else {
+    removeMetadata = (batch) => batch.map(o => o.value);
+  }
+
+  return (batch) => removeMetadata(filterBatchFn(batch));
+}
+
+
 export default class RedisDatabase {
   constructor(url) {
     this.redisClient = promisify(redis.createClient(url),
@@ -115,31 +134,12 @@ export default class RedisDatabase {
     }
     defaults(options, {includeMetadata: false, offset: 0});
 
-    // TODO: Maybe we want to add a batchedFilter operator to batches.js
-    let filterBatchFn;
-    if (typeof options.filters === 'object') {
-      filterBatchFn = function(batch) {
-        return batch.filter(toFunction(options.filters));
-      };
-    } else {
-      filterBatchFn = identity;
-    }
-
-    let removeMetadata;
-    if (options.includeMetadata) {
-      removeMetadata = identity;
-    } else {
-      removeMetadata = (batch) => batch.map(o => o.value);
-    }
-
     return this.redisClient.lrange(key, 0, (-1 - options.offset))
-      .then((results) => (
-        removeMetadata(filterBatchFn(transformResults(results)))
-      ))
+      .then(transformResults)
+      .then(postProcessFunction(options))
   }
 
   observable(key, options={}) {
-    // TODO: This is shared with PG. Maybe make a defaultObservableOptions() function
     if (typeof options === 'number') {
       options = {offset: options};
     }
@@ -155,34 +155,14 @@ export default class RedisDatabase {
       return lastCursor + results.length;
     }
 
-    const initialCursor = options.offset;
-
-    // TODO: Maybe we want to add a batchedFilter operator to batches.js
-    let filterBatchFn;
-    if (typeof options.filters === 'object') {
-      filterBatchFn = function(batch) {
-        return batch.filter(toFunction(options.filters));
-      };
-    } else {
-      filterBatchFn = identity;
-    }
-
-    let removeMetadata;
-    if (options.includeMetadata) {
-      removeMetadata = identity;
-    } else {
-      removeMetadata = (batch) => batch.map(o => o.value);
-    }
-
     return streamQuery(
         query,
         this.channel(key),
-        initialCursor,
+        options.offset,
         nextCursor,
         transformResults
       )
-      .map(filterBatchFn)
-      .map(removeMetadata)
+      .map(postProcessFunction(options))
       .filter(batch => batch.length > 0);
   }
 
