@@ -1,7 +1,7 @@
 {
-  "name": "rxpersist",
+  "name": "rxeventstore",
   "version": "0.0.1",
-  "description": "node es6 module template",
+  "description": "Simple module for persisting and querying data using the EventStore pattern and RxJs",
   "main": "index.js",
   "scripts": {
     "compile": "./node_modules/.bin/babel -d lib/ src/",
@@ -10,17 +10,20 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+git@github.com:rdmclin2/node-es6-template.git"
+    "url": "git@github.com:jbaudanza/rxeventstore.git"
   },
   "keywords": [
-    "rxjs"
+    "rxjs",
+    "eventstore",
+    "redis",
+    "postgresql"
   ],
   "author": "Jonathan Baudanza <jon@jonb.org>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/rdmclin2/node-es6-template/issues"
+    "url": "https://github.com/jbaudanza/rxeventstore/issues"
   },
-  "homepage": "https://github.com/rdmclin2/node-es6-template#readme",
+  "homepage": "https://github.com/jbaudanza/rxeventstore/issues#readme",
   "devDependencies": {
     "babel-cli": "^6.9.0",
     "babel-core": "^6.9.0",

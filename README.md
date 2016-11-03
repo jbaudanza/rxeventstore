@@ -1,21 +1,7 @@
-RxPersist
+RxEventStore
 
-require('rxpersist/database/pg')
-require('rxpersist/database/redis')
-require('rxpersist/database/memory')
-require('rxpersist/database/sqlite')
-require('rxpersist/database/indexdb')
-require('rxpersist/database/kafka')
-require('rxpersist/batching')
+A simple module for persisting and querying data using the
+[Event Store](http://martinfowler.com/eaaDev/EventSourcing.html) pattern and
+[RxJs](https://github.com/ReactiveX/rxjs).
 
-
-import PgDatabase from 'rxpersist/database/pg'
-
-db = new PgDatabase('postgres://localhost/foobar');
-
-db.events('foobar').subscribe
-db.insertEvent('foobar', {...});
-db.shouldThrottle()
-
-db.notifier('hello').subscribe(...)
-db.notify('hello', 'world')
+redis and postgresql are currently supported as data stores.
