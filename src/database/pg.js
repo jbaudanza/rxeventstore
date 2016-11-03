@@ -238,44 +238,6 @@ function configFromURL(urlString) {
   return config;
 }
 
-
-// function streamQuery(offset, channel, fn) {
-//   return Rx.Observable.create(function(observer) {
-//     let maxIdReturned = 0;
-
-//     function poll() {
-//       return fn(maxIdReturned, offset).then(function(results) {
-//         let maxIdInBatch = 0;
-
-//         const filteredResults = [];
-
-//         results.forEach(function(record) {
-//           if (record.id > maxIdInBatch)
-//             maxIdInBatch = record.id;
-
-//           if (record.id > maxIdReturned) {
-//             filteredResults.push(record);
-//             offset = 0;
-//           }
-//         });
-
-//         if (maxIdInBatch > maxIdReturned)
-//           maxIdReturned = maxIdInBatch;
-
-//         return filteredResults;
-//       });
-//     }
-
-//     poll()
-//       .then(
-//         (results) => observer.next(results),
-//         (error) => observer.error(error)
-//       );
-
-//     return channel.flatMap(poll).subscribe(observer);
-//   });
-// }
-
 function camelToUnderscore(input) {
   return input.replace(/([A-Z])/g, ($1) => "_"+$1.toLowerCase());
 }

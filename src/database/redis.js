@@ -128,6 +128,8 @@ export default class RedisDatabase {
     return promise;
   }
 
+  // TODO: The offset is getting applied before the filter. This might not
+  // be what the caller expects, and I think is the reverse from the pg driver
   query(key, options={}) {
     if (typeof options === 'number') {
       options = {offset: options};
