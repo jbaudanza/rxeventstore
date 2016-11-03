@@ -1,31 +1,8 @@
 import Rx from 'rxjs';
 
-
-export function unwrapBatches(batched) {
-  const obs = batched.flatMap((x) => Rx.Observable.from(x));
-
-  batched = batched.filter((l) => l.length > 0);
-
-  // Override the prototype version
-  batched.batches = obs.batches = function() { return batched; };
-
-  // Add an version of skip that will keep the batched intact.
-  obs.skip = batchSkip;
-
-  obs.map = batchMap;
-
-  return obs;
-}
-
-
-export function rewrapBatches(observable) {
-  if (typeof observable.batches === 'function') {
-    return observable.batches();
-  } else {
-    return observable.map(x => [x]);
-  }
-}
-
+// TODO:
+// - batchedFilter
+// - batchedReduce
 
 // TODO: For consistency, it might be better to name this something other
 // than scan, because it only emits once per batch, not per value.
