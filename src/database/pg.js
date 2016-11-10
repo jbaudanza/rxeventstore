@@ -2,11 +2,15 @@ import url from 'url';
 
 import Rx from 'rxjs';
 import Pool from 'pg-pool';
+import pg from 'pg';
 import {defaults, mapKeys, identity, maxBy} from 'lodash';
 
 import processId from '../processId';
 import {toSQL} from './filters';
 import streamQuery from './streamQuery';
+
+
+const {escapeIdentifier, escapeLiteral} = pg.Client.prototype;
 
 
 export default class PgDatabase {
@@ -43,7 +47,7 @@ export default class PgDatabase {
         }
 
         if (client.subscriptionRefCounts[key] === 0) {
-          client.query('LISTEN ' + client.escapeIdentifier(key));
+          client.query('LISTEN ' + escapeIdentifier(key));
         }
 
         client.subscriptionRefCounts[key]++;
@@ -60,7 +64,7 @@ export default class PgDatabase {
           client.subscriptionRefCounts[key]--;
 
           if (client.subscriptionRefCounts[key] === 0) {
-            client.query('UNLISTEN ' + client.escapeIdentifier(key));
+            client.query('UNLISTEN ' + escapeIdentifier(key));
           }
           client.removeListener('notification', listener);
         };
@@ -69,15 +73,13 @@ export default class PgDatabase {
   }
 
   notify(channel, message) {
-    return this.pool.connect().then(function(client) {
-      let cmd = 'NOTIFY ' + client.escapeIdentifier(channel);
+    let cmd = 'NOTIFY ' + escapeIdentifier(channel);
 
-      if (message) {
-        cmd += ", " + client.escapeLiteral(message);
-      }
+    if (message) {
+      cmd += ", " + escapeLiteral(message);
+    }
 
-      return client.query(cmd);
-    });
+    return this.pool.query(cmd);
   }
 
   query(key, options={}) {
@@ -109,8 +111,8 @@ export default class PgDatabase {
       transformFn = (row) => row.data.v;
     }
 
-    return query(this.pool, ...buildQuery(options.offset))
-        .then(r => r.rows.map(transformFn))
+    return this.pool.query(...buildQuery(options.offset))
+        .then(r => r.rows.map(transformFn));
   }
 
   /*
@@ -207,9 +209,7 @@ export default class PgDatabase {
         WHERE ${filterWhere} AND timestamp > ${ageSql}
     `;
 
-    const p = this.pool.connect().then((client) => (
-      client.query(sql, filterValues.concat(windowSize))
-    ));
+    const p = this.pool.query(sql, filterValues.concat(windowSize));
 
     return p.then(r => (
       r.rows[0].count >= maxCount) ? r.rows[0].retryafter.seconds : null
@@ -234,19 +234,6 @@ const INSERT_SQL = `
   ) VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7)
   RETURNING *
 `;
-
-
-function query(pool, sql, args) {
-  return pool.connect().then(function(client) {
-    const p = client.query(sql, args);
-    function done() { client.release(); }
-    function error(err) { done(); throw err; }
-
-    p.then(done, error);
-
-    return p;
-  });
-}
 
 
 function configFromURL(urlString) {

@@ -17,6 +17,10 @@ function insertEvents(eventStore, key, count, iteratee) {
   return eventStore.insertEvents(key, times(count, iteratee));
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 describe('PgDatabase', () => {
   it('should configure the database connection', () => {
     const url = 'postgres://user:password@localhost/database_name';
@@ -27,6 +31,39 @@ describe('PgDatabase', () => {
         user: 'user',
         password: 'password'
     });
+  });
+
+  it.only('should return all connections to the pool', () => {
+    const key = uuid.v4();
+    const db = factory();
+
+    const inserts = insertEvents(db, key, 5);
+
+    // Helpful for debugging pool issues
+    //db.pool.pool._factory.log = function(str) { console.log(str); }
+
+    function assertEmpty() {
+      // TODO: If db-pool ever upgrades it's dependency on generic-pool to
+      // something newer, we can probably stop using this hidden API and use
+      // the newer public API. Right now, we're using generic-pool 2.4.2 and the
+      // newest is 3.1.1
+      assert.equal(db.pool.pool._inUseObjects.length, 0);
+    }
+
+    assertEmpty();
+
+    return inserts
+        .then(() => wait(100))
+        .then(assertEmpty)
+        .then(() => db.query(key))
+        .then(assertEmpty)
+        .then(() => db.observable(key).take(1).toPromise())
+        .then(() => db.notifyClient)
+        .then(function(client) {
+          delete db.notifyClient;
+          client.release();
+          assertEmpty();
+        });
   });
 
   describe(".shouldThrottle", () => {
