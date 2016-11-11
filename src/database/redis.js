@@ -27,8 +27,11 @@ function promisify(object, ...methods) {
   return Object.create(object, properties);
 }
 
-function transformResults(results) {
-  return results.reverse().map(JSON.parse);
+function transformResults(results, cursor) {
+  return {
+    cursor: cursor + results.length,
+    value: results.reverse().map(JSON.parse)
+  }
 }
 
 function postProcessFunction(options) {
@@ -46,7 +49,14 @@ function postProcessFunction(options) {
     removeMetadata = (batch) => batch.map(o => o.value);
   }
 
-  return (batch) => removeMetadata(filterBatchFn(batch));
+  if ('cursor' in options) {
+    return (result) => ({
+      value: removeMetadata(filterBatchFn(result.value)),
+      cursor: result.cursor
+    })
+  } else {
+    return (result) => removeMetadata(filterBatchFn(result.value));
+  }
 }
 
 
@@ -128,24 +138,18 @@ export default class RedisDatabase {
     return promise;
   }
 
-  // TODO: The offset is getting applied before the filter. This might not
-  // be what the caller expects, and I think is the reverse from the pg driver
   query(key, options={}) {
-    if (typeof options === 'number') {
-      options = {offset: options};
-    }
-    defaults(options, {includeMetadata: false, offset: 0});
+    defaults(options, {includeMetadata: false});
 
-    return this.redisClient.lrange(key, 0, (-1 - options.offset))
-      .then(transformResults)
-      .then(postProcessFunction(options))
+    const offset = (options.cursor || 0);
+
+    return this.redisClient.lrange(key, 0, (-1 - offset))
+      .then((results) => transformResults(results, offset))
+      .then(postProcessFunction(options));
   }
 
   observable(key, options={}) {
-    if (typeof options === 'number') {
-      options = {offset: options};
-    }
-    defaults(options, {includeMetadata: false, offset: 0});
+    defaults(options, {includeMetadata: false});
 
     const redis = this.redisClient;
 
@@ -157,15 +161,23 @@ export default class RedisDatabase {
       return lastCursor + results.length;
     }
 
+
+    let filterEmpty;
+    if ('cursor' in options) {
+      filterEmpty = (obj) => obj.value.length > 0;
+    } else {
+      filterEmpty = (obj) => obj.length > 0;
+    }
+
     return streamQuery(
         query,
         this.channel(key),
-        options.offset,
+        (options.cursor || 0),
         nextCursor,
         transformResults
       )
       .map(postProcessFunction(options))
-      .filter(batch => batch.length > 0);
+      .filter(filterEmpty)
   }
 
 }

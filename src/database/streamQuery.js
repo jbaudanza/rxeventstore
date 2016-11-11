@@ -14,6 +14,7 @@ export default function streamQuery(queryFn, notifier, initialCursor, cursorFn, 
 
       queryFn(cursor).then(function(result) {
         inFlight = false;
+
         observer.next(resultsFn(result, cursor));
         cursor = cursorFn(cursor, result);
 

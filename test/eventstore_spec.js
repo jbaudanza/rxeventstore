@@ -136,6 +136,19 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
       });
     });
 
+    it('should not return an empty set of results', () => {
+      const key = uuid.v4();
+      const eventStore = eventStoreFactory();
+
+      // Assert that nothing is ever emitted from the observable
+      return eventStore.observable(key)
+          .bufferTime(100)
+          .take(1)
+          .forEach(function(result) {
+            assert.deepEqual(result, []);
+          });
+    });
+
     it('should batch the results', () => {
       const eventStore = eventStoreFactory();
       const key = uuid.v4();
