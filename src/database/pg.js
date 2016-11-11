@@ -3,7 +3,7 @@ import url from 'url';
 import Rx from 'rxjs';
 import Pool from 'pg-pool';
 import pg from 'pg';
-import {defaults, mapKeys, identity, maxBy} from 'lodash';
+import {defaults, mapKeys, identity, maxBy, last} from 'lodash';
 
 import processId from '../processId';
 import {toSQL} from './filters';
@@ -83,77 +83,78 @@ export default class PgDatabase {
   }
 
   query(key, options={}) {
-    if (typeof options === 'number') {
-      options = {offset: options};
+    defaults(options, {includeMetadata: false});
+
+    let filters = Object.assign({key}, options.filters);
+
+    // Convert the filter keys into underscores
+    filters = mapKeys(filters, (v, k) => camelToUnderscore(k));
+
+    if (typeof options.cursor === 'number') {
+      filters.id = {$gt: options.cursor};
     }
 
-    defaults(options, {includeMetadata: false, offset: 0});
+    const [where, params] = toSQL(filters);
+    const sql = `SELECT * FROM events WHERE ${where} ORDER BY id ASC`;
 
-    function buildQuery(offset) {
-      let filters = Object.assign({key: key}, options.filters);
-
-      // Convert the filter keys into underscores
-      filters = mapKeys(filters, (v, k) => camelToUnderscore(k));
-
-      const [where, params] = toSQL(filters);
-      params.push(offset);
-
-      return [
-        `SELECT * FROM events WHERE ${where} ORDER BY id ASC OFFSET $${params.length}`,
-        params
-      ];
-    }
-
-    let transformFn;
+    let transformValues;
     if (options.includeMetadata) {
-      transformFn = transformEvent;
+      transformValues = transformEvent;
     } else {
-      transformFn = (row) => row.data.v;
+      transformValues = (row) => row.data.v;
     }
 
-    return this.pool.query(...buildQuery(options.offset))
-        .then(r => r.rows.map(transformFn));
+    let transformBatch;
+
+    if('cursor' in options) {
+      transformBatch = function(batch) {
+        const value = batch.map(transformValues);
+        if (batch.length > 0) {
+          return {
+            value: value,
+            cursor: last(batch).id
+          }
+        } else {
+          return {
+            value: value,
+            cursor: options.cursor
+          };
+        }
+      };
+    } else {
+      transformBatch = (batch) => batch.map(transformValues);
+    }
+
+    return this.pool.query(sql, params).then(r => transformBatch(r.rows));
   }
 
   /*
    * options:
    *   includeMetadata: (default false)
-   *   offset: (default 0)
+   *   cursor: (no default)
    */
   observable(key, options={}) {
-    if (typeof options === 'number') {
-      options = {offset: options};
+    defaults(options, {includeMetadata: false});
+
+    function nextCursor(lastCursor, results) {
+      return results.cursor;
     }
 
-    defaults(options, {offset: 0});
-
-    function nextCursor(lastCursor, result) {
-      if (result.length > 0)
-        return maxBy(result, (row) => row.id).id;
-      else
-        return lastCursor;
-    }
-
-    function runQuery(minId) {
-      const filters = Object.assign({}, options.filters, {id: {$gt: minId}});
-      const localOptions = Object.assign({}, options, {
-        offset: (minId > 0) ? 0 : options.offset,
-        filters: filters,
-        includeMetadata: true
-      });
-      return this.query(key, localOptions);
+    function runQuery(cursor) {
+      return this.query(key, Object.assign({}, options, {cursor}));
     }
 
     let transformFn;
-    if (options.includeMetadata) {
+    if ('cursor' in options) {
       transformFn = identity;
     } else {
-      transformFn = (batch) => batch.map((row) => row.value);
+      transformFn = (results) => results.value;
     }
 
     const channel = this.channel(key);
-    return streamQuery(runQuery.bind(this), channel, 0, nextCursor, identity)
-        .filter(batch => batch.length > 0)
+
+    return streamQuery(runQuery.bind(this), channel, options.cursor, nextCursor, identity)
+        .filter(result => result.value.length > 0)
         .map(transformFn);
   }
 

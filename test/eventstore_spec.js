@@ -51,6 +51,26 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
           });
     });
 
+    it('should skip ahead to the cursor', () => {
+      const key = uuid.v4();
+      const eventStore = eventStoreFactory();
+      const inserts = insertEvents(eventStore, key, 3);
+
+      return inserts.then(() => (eventStore.query(key, {cursor: null})))
+      .then(function(results) {
+        assert('cursor' in results);
+        assert.deepEqual(results.value, [0,1,2]);
+        const nextCursor = results.cursor;
+
+        return insertEvents(eventStore, key, 3, (x) => x + 3)
+            .then(() => (eventStore.query(key, {cursor: nextCursor})))
+      })
+      .then(function(results) {
+        assert('cursor' in results);
+        assert.deepEqual(results.value, [3,4,5]);
+      });
+    });
+
     it('should include the metadata', () => {
       const key = uuid.v4();
       const eventStore = eventStoreFactory();
@@ -130,18 +150,30 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
       ));
     });
 
-    it('should skip ahead to the offset', () => {
+    it('should skip ahead to the cursor', () => {
       const key = uuid.v4();
       const eventStore = eventStoreFactory();
-      const inserts = insertEvents(eventStore, key, 5);
+      const inserts = insertEvents(eventStore, key, 3);
 
       return inserts.then(() => (
-        eventStore.observable(key, 2)
+        eventStore.observable(key, {cursor: null})
           .take(1)
-          .forEach((results) => {
-            assert.deepEqual(results, [2,3,4]);
-          })
-      ));
+          .toPromise()
+      )).then(function(results) {
+        assert('cursor' in results);
+        assert.deepEqual(results.value, [0,1,2]);
+        const nextCursor = results.cursor;
+
+        return insertEvents(eventStore, key, 3, (x) => x + 3)
+            .then(() => (
+              eventStore.observable(key, {cursor: nextCursor})
+                .take(1)
+                .toPromise()
+            ))
+      }).then(function(results) {
+        assert('cursor' in results);
+        assert.deepEqual(results.value, [3,4,5]);
+      });
     });
 
     it('should handle multiple events inserted in parallel', () => {

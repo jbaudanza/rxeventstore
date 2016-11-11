@@ -33,7 +33,7 @@ describe('PgDatabase', () => {
     });
   });
 
-  it.only('should return all connections to the pool', () => {
+  it('should return all connections to the pool', () => {
     const key = uuid.v4();
     const db = factory();
 
