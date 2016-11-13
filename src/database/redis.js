@@ -4,7 +4,7 @@ import Rx from 'rxjs';
 import processId from '../processId';
 import streamQuery from './streamQuery';
 
-import {defaults, identity} from 'lodash';
+import {identity, pick} from 'lodash';
 import {toFunction} from './filters';
 
 
@@ -44,7 +44,11 @@ function postProcessFunction(options) {
 
   let removeMetadata;
   if (options.includeMetadata) {
-    removeMetadata = identity;
+    if (Array.isArray(options.includeMetadata)) {
+      removeMetadata = (batch) => batch.map(obj => pick(obj, options.includeMetadata, 'value'));
+    } else {
+      removeMetadata = identity;
+    }
   } else {
     removeMetadata = (batch) => batch.map(o => o.value);
   }
@@ -139,8 +143,6 @@ export default class RedisDatabase {
   }
 
   query(key, options={}) {
-    defaults(options, {includeMetadata: false});
-
     const offset = (options.cursor || 0);
 
     return this.redisClient.lrange(key, 0, (-1 - offset))
@@ -149,8 +151,6 @@ export default class RedisDatabase {
   }
 
   observable(key, options={}) {
-    defaults(options, {includeMetadata: false});
-
     const redis = this.redisClient;
 
     function query(cursor) {

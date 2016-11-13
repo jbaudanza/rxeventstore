@@ -3,7 +3,7 @@ import url from 'url';
 import Rx from 'rxjs';
 import Pool from 'pg-pool';
 import pg from 'pg';
-import {defaults, mapKeys, identity, maxBy, last} from 'lodash';
+import {mapKeys, identity, maxBy, last, includes} from 'lodash';
 
 import processId from '../processId';
 import {toSQL} from './filters';
@@ -83,8 +83,6 @@ export default class PgDatabase {
   }
 
   query(key, options={}) {
-    defaults(options, {includeMetadata: false});
-
     let filters = Object.assign({key}, options.filters);
 
     // Convert the filter keys into underscores
@@ -99,7 +97,13 @@ export default class PgDatabase {
 
     let transformValues;
     if (options.includeMetadata) {
-      transformValues = transformEvent;
+      let fields;
+      if (Array.isArray(options.includeMetadata)) {
+        fields = options.includeMetadata;
+      } else {
+        fields = ['id', 'timestamp', 'processId', 'sessionId', 'actor']
+      }
+      transformValues = transformEvent.bind(undefined, fields);
     } else {
       transformValues = (row) => row.data.v;
     }
@@ -134,8 +138,6 @@ export default class PgDatabase {
    *   cursor: (no default)
    */
   observable(key, options={}) {
-    defaults(options, {includeMetadata: false});
-
     function nextCursor(lastCursor, results) {
       return results.cursor;
     }
@@ -267,22 +269,28 @@ function underscoreToCamel(input) {
   return input.replace(/_([a-z])/g, ($1, $2) => $2.toUpperCase());
 }
 
-function transformEvent(row) {
+function transformEvent(fields, row) {
   const obj = {
-    id: row.id,
-    timestamp: row.timestamp,
     value: row.data.v
   };
 
-  if (row.process_id) {
+  if (includes(fields, 'id')) {
+    obj.id = row.id;
+  }
+
+  if (includes(fields, 'timestamp')) {
+    obj.timestamp = row.timestamp;
+  }
+
+  if (includes(fields, 'processId') && row.process_id) {
     obj.processId = row.process_id;
   }
 
-  if (row.session_id) {
+  if (includes(fields, 'sessionId') && row.session_id) {
     obj.sessionId = row.session_id;
   }
 
-  if (row.actor) {
+  if (includes(fields, 'actor') && row.actor) {
     obj.actor = Object.assign({}, row.actor);
     delete obj.actor.iat;
   }

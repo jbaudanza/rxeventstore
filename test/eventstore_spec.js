@@ -4,7 +4,8 @@ import uuid from 'node-uuid';
 import {times, flatten} from 'lodash';
 
 function insertEvents(eventStore, key, count, iteratee) {
-  return eventStore.insertEvents(key, times(count, iteratee));
+  const sessionId = uuid.v4();
+  return eventStore.insertEvents(key, times(count, iteratee), {sessionId});
 }
 
 function wait(ms) {
@@ -82,6 +83,22 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
             assert(results[0]);
             assert('timestamp' in results[0]);
             assert('processId' in results[0]);
+            assert.equal(results[0].value, 0);
+          });
+    });
+
+    it('should include only the metadata in the list', () => {
+      const key = uuid.v4();
+      const eventStore = eventStoreFactory();
+      return insertEvents(eventStore, key, 3)
+          .then(() => eventStore.query(key, {includeMetadata: ['sessionId', 'timestamp']}))
+          .then(function(results) {
+            assert.equal(3, results.length);
+
+            assert(results[0]);
+            assert('sessionId' in results[0]);
+            assert('timestamp' in results[0]);
+            assert(!('processId' in results[0]));
             assert.equal(results[0].value, 0);
           });
     });
