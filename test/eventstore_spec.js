@@ -206,6 +206,27 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
       });
     });
 
+    it('should include only the metadata in the list', () => {
+      const key = uuid.v4();
+      const eventStore = eventStoreFactory();
+
+      const inserts = insertEvents(eventStore, key, 3);
+      return inserts.then(
+          () => eventStore
+            .observable(key, {includeMetadata: ['sessionId', 'timestamp']})
+            .take(1)
+            .toPromise()
+        ).then(function(results) {
+          assert.equal(3, results.length);
+
+          assert(results[0]);
+          assert('sessionId' in results[0]);
+          assert('timestamp' in results[0]);
+          assert(!('processId' in results[0]));
+          assert.equal(results[0].value, 0);
+        });
+    });
+
     it('should handle multiple events inserted in parallel', () => {
       const key = uuid.v4();
       const eventStore = eventStoreFactory();
