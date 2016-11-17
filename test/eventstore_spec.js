@@ -24,13 +24,8 @@ function assertBatch(observable, timeout, expectedResults, transform=identity) {
     const sub = observable.subscribe(function(batch) {
       results = results.concat(batch);
 
-      if (results.length > expectedResults.length) {
-        assert.fail(results, expectedResults, 'Received more results than expected');
-      }
-
-      assert.deepEqual(transform(results), expectedResults.slice(0, results.length));
-
-      if (results.length === expectedResults.length) {
+      if (results.length >= expectedResults.length) {
+        assert.deepEqual(transform(results.slice(0, expectedResults.length)), expectedResults);
         clearTimeout(timerId);
         sub.unsubscribe();
         resolve(true);
@@ -166,7 +161,12 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
         .then(wait(50))
         .then(() => insertEvents(eventStore, key, 3, (x) => x + 3));
 
-      return assertBatch(eventStore.observable(key), 500, [0,1,2,3,4,5])
+      const obs = eventStore.observable(key);
+
+      return Promise.all([
+        assertBatch(obs, 500, [0,1,2]),
+        assertBatch(obs, 500, [0,1,2,3,4,5])
+      ]);
     });
 
     it('should not return an empty set of results', () => {
