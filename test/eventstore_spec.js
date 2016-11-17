@@ -16,24 +16,15 @@ function wait(ms) {
 // Helper function to assert that an observable emits the batched results
 // that are expected within a given timeout.
 function assertBatch(observable, timeout, expectedResults, transform=identity) {
-  return new Promise(function(resolve, reject) {
-    const timerId = setTimeout(() => reject('timeout'), timeout);
-
-    let results = [];
-
-    const sub = observable.subscribe(function(batch) {
-      results = results.concat(batch);
-
-      if (results.length >= expectedResults.length) {
-        assert.deepEqual(transform(results.slice(0, expectedResults.length)), expectedResults);
-        clearTimeout(timerId);
-        sub.unsubscribe();
-        resolve(true);
-      }
+  return observable
+    .scan((results, batch) => results.concat(batch), [])
+    .first((results) => results.length >= expectedResults.length)
+    .timeout(timeout)
+    .toPromise()
+    .then(function(results) {
+      assert.deepEqual(transform(results.slice(0, expectedResults.length)), expectedResults);
     });
-  });
 }
-
 
 export function itShouldActLikeAnEventStore(eventStoreFactory) {
   describe('.query', () => {
