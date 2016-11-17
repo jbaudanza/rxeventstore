@@ -1,7 +1,7 @@
 import assert from 'assert';
 import uuid from 'node-uuid';
 
-import {times, flatten} from 'lodash';
+import {times, flatten, identity} from 'lodash';
 
 function insertEvents(eventStore, key, count, iteratee) {
   const sessionId = uuid.v4();
@@ -11,6 +11,34 @@ function insertEvents(eventStore, key, count, iteratee) {
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+
+// Helper function to assert that an observable emits the batched results
+// that are expected within a given timeout.
+function assertBatch(observable, timeout, expectedResults, transform=identity) {
+  return new Promise(function(resolve, reject) {
+    const timerId = setTimeout(() => reject('timeout'), timeout);
+
+    let results = [];
+
+    const sub = observable.subscribe(function(batch) {
+      results = results.concat(batch);
+
+      if (results.length > expectedResults.length) {
+        assert.fail(results, expectedResults, 'Received more results than expected');
+      }
+
+      assert.deepEqual(transform(results), expectedResults.slice(0, results.length));
+
+      if (results.length === expectedResults.length) {
+        clearTimeout(timerId);
+        sub.unsubscribe();
+        resolve(true);
+      }
+    });
+  });
+}
+
 
 export function itShouldActLikeAnEventStore(eventStoreFactory) {
   describe('.query', () => {
@@ -131,26 +159,14 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
       const eventStore = eventStoreFactory();
 
       const key = uuid.v4();
-      insertEvents(eventStore, key, 3);
 
-      const observable = eventStore.observable(key);
-      const results = [];
+      // Insert some events, wait a bit, insert some more, and validate that
+      // they were all emitted by the observable
+      insertEvents(eventStore, key, 3)
+        .then(wait(50))
+        .then(() => insertEvents(eventStore, key, 3, (x) => x + 3));
 
-      observable.subscribe(function(batch) {
-        results.push(batch);
-      });
-
-      return wait(50).then(() => {
-        assert.deepEqual(flatten(results), [0,1,2]);
-
-        // Insert some more events and check to make sure they are also
-        // streamed
-        return insertEvents(eventStore, key, 3, (x) => x + 3)
-      })
-      .then(() => wait(50))
-      .then(() => {
-        assert.deepEqual(flatten(results), [0,1,2,3,4,5]);
-      });
+      return assertBatch(eventStore.observable(key), 500, [0,1,2,3,4,5])
     });
 
     it('should not return an empty set of results', () => {
@@ -238,31 +254,19 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
       // These will all happen at the same time, with no guarantee about ordering
       const inserts = Promise.all([
         eventStore.insertEvent(key, 1),
-        eventStore.insertEvent(key, 2),
-        eventStore.insertEvent(key, 3)
-      ]);
+        eventStore.insertEvent(key, 3),
+        eventStore.insertEvent(key, 2)
+      ])
+      .then(() => wait(100))
+      .then(() => (
+        Promise.all([
+          eventStore.insertEvent(key, 6),
+          eventStore.insertEvent(key, 4),
+          eventStore.insertEvent(key, 5)
+        ])
+      ));
 
-      obs.subscribe(function(batch) {
-        results.push(batch);
-      });
-
-      return inserts
-        .then(() => wait(50))
-        .then(function() {
-          assert.deepEqual(flatten(results).sort(), [1,2,3]);
-          results = [];
-
-          return Promise.all([
-            eventStore.insertEvent(key, 4),
-            eventStore.insertEvent(key, 5),
-            eventStore.insertEvent(key, 6)
-          ]);
-        })
-        .then(() => wait(50))
-        .then(function() {
-          assert.deepEqual(flatten(results).sort(), [4,5,6]);
-          results = [];
-        });
+      return assertBatch(eventStore.observable(key), 500, [1,2,3,4,5,6], (array) => array.sort());
     });
   });
 }
