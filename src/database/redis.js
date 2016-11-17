@@ -1,4 +1,4 @@
-import redis from 'redis';
+import redisDriver from 'redis';
 import Rx from 'rxjs';
 
 import processId from '../processId';
@@ -65,11 +65,14 @@ function postProcessFunction(options) {
 
 
 export default class RedisDatabase {
-  constructor(url) {
-    this.redisClient = promisify(redis.createClient(url),
-        'publish', 'lpush', 'lrange'
+  constructor(url, driver=redisDriver) {
+    // Instrument the client to use promises
+    this.redisClient = promisify(
+      driver.createClient(url),
+      'publish', 'lpush', 'lrange'
     );
-    this.subscriberClient = redis.createClient(url);
+
+    this.subscriberClient = driver.createClient(url);
   }
 
   channel(key) {
