@@ -89,6 +89,8 @@ export default class RedisDatabase {
         this.subscriberClient.subscribe(key, redisCallback);
       }
 
+      this.subscriberClient.subscriptionRefCounts[key]++;
+
       function redisCallback(err, result) {
         if (err)
           observer.error(err);
@@ -108,7 +110,7 @@ export default class RedisDatabase {
         if (this.subscriberClient.subscriptionRefCounts[key] === 0) {
           this.subscriberClient.unsubscribe(key);
         }
-        this.subscriberClient.removeListener('notification', listener);
+        this.subscriberClient.removeListener('message', listener);
       };
     });
   }
