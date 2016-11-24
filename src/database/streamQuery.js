@@ -25,8 +25,6 @@ export default function streamQuery(queryFn, notifier, initialCursor, cursorFn, 
       onError);
     }
 
-    runQuery();
-
     function next() {
       if (inFlight) {
         shouldRequest = true;

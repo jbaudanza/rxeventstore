@@ -6,26 +6,8 @@ import streamQuery from './streamQuery';
 
 import {identity, pick} from 'lodash';
 import {toFunction} from './filters';
+import promisify from '../promisify';
 
-
-function promisify(object, ...methods) {
-  const properties = {};
-
-  methods.forEach(function(method) {
-    const value = function() {
-      const args = Array.prototype.slice.call(arguments);
-      return new Promise(function(resolve, reject) {
-        object[method].apply(object, args.concat(function(err, result) {
-          if (err) reject(err);
-          else resolve(result);
-        }));
-      });
-    };
-    properties[method] = {value: value};
-  });
-
-  return Object.create(object, properties);
-}
 
 function transformResults(results, cursor) {
   return {

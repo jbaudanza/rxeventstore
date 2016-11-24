@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "compile": "./node_modules/.bin/babel -d lib/ src/",
-    "test": "npm run compile && ./node_modules/.bin/mocha --compilers js:babel-core/register",
+    "test": "npm run compile && NODE_ENV=test ./node_modules/.bin/mocha --compilers js:babel-core/register",
     "prepublish": "npm run compile"
   },
   "repository": {
@@ -40,6 +40,7 @@
   },
   "dependencies": {
     "babel-polyfill": "^6.9.1",
+    "generic-pool": "^3.1.1",
     "node-uuid": "^1.4.7",
     "pg": "^6.1.0",
     "pg-pool": "^1.5.0",

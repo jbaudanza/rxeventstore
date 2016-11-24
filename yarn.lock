@@ -1273,6 +1273,10 @@ generate-object-property@^1.1.0:
   dependencies:
     is-property "^1.0.0"
 
+generic-pool:
+  version "3.1.1"
+  resolved "https://registry.yarnpkg.com/generic-pool/-/generic-pool-3.1.1.tgz#930be4cc53ad075a81f0c9922402b8996e8df41b"
+
 generic-pool@2.4.2:
   version "2.4.2"
   resolved "https://registry.yarnpkg.com/generic-pool/-/generic-pool-2.4.2.tgz#886bc5bf0beb7db96e81bcbba078818de5a62683"
