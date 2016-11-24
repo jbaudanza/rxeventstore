@@ -23,8 +23,8 @@ export function itShouldActLikeANotifier(notifierFactory) {
     ]);
 
     return promise.then(function([foo, bar]) {
-      assert.deepEqual(foo, ['hello']);
-      assert.deepEqual(bar, []);
+      assert.deepEqual(foo, ['ready', 'hello']);
+      assert.deepEqual(bar, ['ready']);
     });
   });
 

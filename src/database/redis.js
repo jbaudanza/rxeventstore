@@ -86,14 +86,16 @@ export default class RedisDatabase {
       }
 
       if (this.subscriberClient.subscriptionRefCounts[key] === 0) {
-        this.subscriberClient.subscribe(key, redisCallback);
+        this.subscriberClient.subscribe(key, onReady);
       }
 
       this.subscriberClient.subscriptionRefCounts[key]++;
 
-      function redisCallback(err, result) {
+      function onReady(err, result) {
         if (err)
           observer.error(err);
+        else
+          observer.next('ready');
       }
 
       function listener(channel, message) {

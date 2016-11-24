@@ -47,7 +47,10 @@ export default class PgDatabase {
         }
 
         if (client.subscriptionRefCounts[key] === 0) {
-          client.query('LISTEN ' + escapeIdentifier(key));
+          client.query('LISTEN ' + escapeIdentifier(key)).then(
+              function() { observer.next('ready'); },
+              function(err) { observer.error(err); }
+          )
         }
 
         client.subscriptionRefCounts[key]++;
