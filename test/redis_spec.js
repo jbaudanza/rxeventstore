@@ -19,31 +19,30 @@ function factory() {
 describe('RedisDatabase', () => {
   itShouldActLikeANotifier(factory);
   itShouldActLikeAnEventStore(factory);
-});
 
+  describe('.runProjection', () => {
+    it('should work', function() {
+      const key = uuid.v4();
+      const db = factory();
 
-describe('SetProjection', () => {
-  it('should work', function() {
-    const key = uuid.v4();
+      const ops = [
+        {add: ['hello', 'world', 'universe']},
+        {remove: ['universe']}
+      ].map((value, cursor) => ({cursor, value}));
 
-    const ops = [
-      {add: ['hello', 'world', 'universe']},
-      {remove: ['universe']}
-    ].map((value, cursor) => ({cursor, value}));
+      function resumable(cursor) {
+        return Rx.Observable.from(ops);
+      }
 
-    function resumable(cursor) {
-      return Rx.Observable.from(ops);
-    }
+      const stop = db.runProjection(key, resumable);
 
-    const projection = new SetProjection(factory(), key, resumable);
-    projection.run();
-
-    return projection
-      .members()
-      .takeUntil(Rx.Observable.of(1).delay(1000))
-      .toPromise()
-      .then(function(result) {
-          assert.deepEqual(result.sort(), ['hello', 'world'])
-      });
+      return db
+        .smembers(key)
+        .takeUntil(Rx.Observable.of(1).delay(1000))
+        .toPromise()
+        .then(function(result) {
+            assert.deepEqual(result.sort(), ['hello', 'world'])
+        });
+    });
   });
 });

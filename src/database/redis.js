@@ -4,15 +4,25 @@ import Rx from 'rxjs';
 import processId from '../processId';
 import streamQuery from './streamQuery';
 
-import {identity, pick} from 'lodash';
+import {identity, pick, last} from 'lodash';
 import {toFunction} from './filters';
 import promisify from '../promisify';
 
+import pool from './redis_pool';
 
 function transformResults(results, cursor) {
   return {
     cursor: cursor + results.length,
     value: results.reverse().map(JSON.parse)
+  }
+}
+
+function validateProjectionEvent(event) {
+  if (typeof event !== 'object' || typeof event.value !== 'object') {
+    console.warn(`Malformed event for SetProjection ${this.key}`);
+    return false;
+  } else {
+    return true;
   }
 }
 
@@ -169,4 +179,103 @@ export default class RedisDatabase {
       .filter(filterEmpty)
   }
 
+  runProjection(key, resumable) {
+    const baseKey = `projection:${key}`;
+    const cursorKey = `${baseKey}:cursor`;
+
+    const notify = this.notify.bind(this);
+
+    // projection state
+    let subscription;
+    let queuedEvents = [];
+    let cancelled = false;
+    let transactionClient;
+    let lastCursor = null;
+
+
+    function startTransaction() {
+      if (!transactionClient) {
+        transactionClient = pool.acquire().then((redis) => {
+          redis.watch(cursorKey);
+
+          redis.get(cursorKey).then((currentCursor) => {
+            if (lastCursor !== currentCursor) {
+              // TODO: Abort and resubscribe
+              return;
+            }
+
+            const multi = redis.multi();
+
+            queuedEvents.forEach(function(e) {
+              if (Array.isArray(e.value.add)) {
+                e.value.add.forEach((value) => multi.sadd(baseKey, value));
+              }
+              if (Array.isArray(e.value.remove)) {
+                e.value.remove.forEach((value) => multi.srem(baseKey, value));
+              }
+            });
+
+            multi.set(cursorKey, last(queuedEvents).cursor);
+
+            multi.exec((err, result) => {
+              pool.release(redis);
+
+              if (err) {
+                console.error(err);
+              } else {
+                // Detect a write conflict
+                if (result === null) {
+                  console.warn(`A write conflict was detected on the projection ${baseKey}. There may be multiple projections running on the same key.`)
+                  doSubscription();
+                } else {
+                  notify(baseKey);
+                }
+              }
+            });
+
+            transactionClient = null;
+            queuedEvents = [];
+          });
+        });
+      }
+    }
+
+    function doSubscription() {
+      pool.global.get(cursorKey).then((cursor) => {
+        if (cancelled)
+          return;
+
+        if (subscription)
+          subscription.unsubscribe();
+
+        const observable = resumable(cursor);
+        lastCursor = cursor;
+
+        // TODO: What happens on error or completed?
+        subscription = observable.subscribe(function(event) {
+          if (!validateProjectionEvent(event))
+            return;
+
+          queuedEvents.push(event);
+          startTransaction();
+        });
+      });
+    }
+
+    doSubscription();
+
+    return function() {
+      cancelled = true;
+      if (subscription)
+        subscription.unsubscribe()
+    }
+  }
+
+  smembers(key) {
+    const baseKey = `projection:${key}`;
+
+    return this
+        .channel(baseKey)
+        .flatMap(() => pool.global.smembers(baseKey));
+  }
 }
