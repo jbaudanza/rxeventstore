@@ -8,7 +8,7 @@ import {identity, pick, last} from 'lodash';
 import {toFunction} from './filters';
 import promisify from '../promisify';
 
-import pool from './redis_pool';
+import RedisConnections from './redis_connections';
 
 function transformResults(results, cursor) {
   return {
@@ -58,30 +58,24 @@ function postProcessFunction(options) {
 
 export default class RedisDatabase {
   constructor(url, driver=redisDriver) {
-    // Instrument the client to use promises
-    this.redisClient = promisify(
-      driver.createClient(url),
-      'publish', 'lpush', 'lrange'
-    );
-
-    this.subscriberClient = driver.createClient(url);
+    this.clients = new RedisConnections(url, driver);
   }
 
   channel(key) {
     return Rx.Observable.create((observer) => {
-      if (!('subscriptionRefCounts' in this.subscriberClient)) {
-        this.subscriberClient.subscriptionRefCounts = {};
+      if (!('subscriptionRefCounts' in this.clients.subscriptions)) {
+        this.clients.subscriptions.subscriptionRefCounts = {};
       }
 
-      if (!(key in this.subscriberClient.subscriptionRefCounts)) {
-        this.subscriberClient.subscriptionRefCounts[key] = 0;
+      if (!(key in this.clients.subscriptions.subscriptionRefCounts)) {
+        this.clients.subscriptions.subscriptionRefCounts[key] = 0;
       }
 
-      if (this.subscriberClient.subscriptionRefCounts[key] === 0) {
-        this.subscriberClient.subscribe(key, onReady);
+      if (this.clients.subscriptions.subscriptionRefCounts[key] === 0) {
+        this.clients.subscriptions.subscribe(key, onReady);
       }
 
-      this.subscriberClient.subscriptionRefCounts[key]++;
+      this.clients.subscriptions.subscriptionRefCounts[key]++;
 
       function onReady(err, result) {
         if (err)
@@ -96,15 +90,15 @@ export default class RedisDatabase {
         }
       }
 
-      this.subscriberClient.on('message', listener);
+      this.clients.subscriptions.on('message', listener);
 
       return () => {
-        this.subscriberClient.subscriptionRefCounts[key]--;
+        this.clients.subscriptions.subscriptionRefCounts[key]--;
 
-        if (this.subscriberClient.subscriptionRefCounts[key] === 0) {
-          this.subscriberClient.unsubscribe(key);
+        if (this.clients.subscriptions.subscriptionRefCounts[key] === 0) {
+          this.clients.subscriptions.unsubscribe(key);
         }
-        this.subscriberClient.removeListener('message', listener);
+        this.clients.subscriptions.removeListener('message', listener);
       };
     });
   }
@@ -113,7 +107,7 @@ export default class RedisDatabase {
     if (typeof message === 'undefined')
         message = '';
 
-    return this.redisClient.publish(key, message);
+    return this.clients.global.publish(key, message);
   }
 
   insertEvent(key, event, meta={}) {
@@ -132,7 +126,7 @@ export default class RedisDatabase {
       }, meta))
     ));
 
-    const promise = this.redisClient.lpush(key, ...values);
+    const promise = this.clients.global.lpush(key, ...values);
 
     promise.then(() => {
       this.notify(key);
@@ -144,13 +138,13 @@ export default class RedisDatabase {
   query(key, options={}) {
     const offset = (options.cursor || 0);
 
-    return this.redisClient.lrange(key, 0, (-1 - offset))
+    return this.clients.global.lrange(key, 0, (-1 - offset))
       .then((results) => transformResults(results, offset))
       .then(postProcessFunction(options));
   }
 
   observable(key, options={}) {
-    const redis = this.redisClient;
+    const redis = this.clients.global;
 
     function query(cursor) {
       return redis.lrange(key, 0, (-1 - cursor));
@@ -184,6 +178,8 @@ export default class RedisDatabase {
     const cursorKey = `${baseKey}:cursor`;
 
     const notify = this.notify.bind(this);
+    const pool = this.clients.pool;
+    const redis = this.clients.global;
 
     // projection state
     let subscription;
@@ -241,7 +237,7 @@ export default class RedisDatabase {
     }
 
     function doSubscription() {
-      pool.global.get(cursorKey).then((cursor) => {
+      redis.get(cursorKey).then((cursor) => {
         if (cancelled)
           return;
 
@@ -276,6 +272,6 @@ export default class RedisDatabase {
 
     return this
         .channel(baseKey)
-        .flatMap(() => pool.global.smembers(baseKey));
+        .flatMap(() => this.clients.global.smembers(baseKey));
   }
 }
