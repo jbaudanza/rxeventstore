@@ -20,28 +20,56 @@ describe('RedisDatabase', () => {
   itShouldActLikeANotifier(factory);
   itShouldActLikeAnEventStore(factory);
 
-  describe('.runProjection', () => {
+  describe.only('.runProjection', () => {
     it('should work', function() {
       const key = uuid.v4();
       const db = factory();
 
-      const ops = [
-        [['sadd', key, 'hello', 'world', 'universe']],
-        [['srem', key, 'universe']]
-      ].map((value, cursor) => ({cursor, value}));
+      const opSubject = new Rx.ReplaySubject(10);
+
+      opSubject.next({
+        cursor: 1,
+        value: [['sadd', key, 'hello', 'world', 'universe']]
+      });
+
+      opSubject.next({
+        cursor: 2,
+        value: [['srem', key, 'universe']]
+      });
 
       function resumable(cursor) {
-        return Rx.Observable.from(ops);
+        assert(cursor === null || typeof cursor === 'number');
+        return opSubject.skip(cursor || 0);
       }
 
-      const stop = db.runProjection(key, resumable);
+      let stop = db.runProjection(key, resumable);
+      const members = db.smembers(key);
 
-      return db
-        .smembers(key)
-        .takeUntil(Rx.Observable.of(1).delay(1000))
+      return members
+        .takeUntil(Rx.Observable.of(1).delay(500))
         .toPromise()
         .then(function(result) {
-            assert.deepEqual(result.sort(), ['hello', 'world'])
+            assert(Array.isArray(result))
+            assert.deepEqual(result.sort(), ['hello', 'world']);
+            stop();
+
+            opSubject.next({
+              cursor: 3,
+              value: [
+                ['sadd', key, 'foo'],
+                ['sadd', key, 'bar']
+              ]
+            });
+
+            stop = db.runProjection(key, resumable);
+
+            return members
+              .takeUntil(Rx.Observable.of(1).delay(500))
+              .toPromise()
+        }).then(function(result) {
+            assert(Array.isArray(result))
+            assert.deepEqual(result.sort(), ['bar', 'foo', 'hello', 'world']);
+            stop();
         });
     });
   });
