@@ -26,8 +26,8 @@ describe('RedisDatabase', () => {
       const db = factory();
 
       const ops = [
-        {add: ['hello', 'world', 'universe']},
-        {remove: ['universe']}
+        [['sadd', key, 'hello', 'world', 'universe']],
+        [['srem', key, 'universe']]
       ].map((value, cursor) => ({cursor, value}));
 
       function resumable(cursor) {

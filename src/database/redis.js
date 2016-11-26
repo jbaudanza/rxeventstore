@@ -174,8 +174,7 @@ export default class RedisDatabase {
   }
 
   runProjection(key, resumable) {
-    const baseKey = `projection:${key}`;
-    const cursorKey = `${baseKey}:cursor`;
+    const cursorKey = `projection-cursor:${key}`;
 
     const notify = this.notify.bind(this);
     const pool = this.clients.pool;
@@ -203,12 +202,9 @@ export default class RedisDatabase {
             const multi = redis.multi();
 
             queuedEvents.forEach(function(e) {
-              if (Array.isArray(e.value.add)) {
-                e.value.add.forEach((value) => multi.sadd(baseKey, value));
-              }
-              if (Array.isArray(e.value.remove)) {
-                e.value.remove.forEach((value) => multi.srem(baseKey, value));
-              }
+              e.value.forEach(function(op) {
+                multi[op[0]].apply(multi, op.slice(1))
+              });
             });
 
             multi.set(cursorKey, last(queuedEvents).cursor);
@@ -221,10 +217,10 @@ export default class RedisDatabase {
               } else {
                 // Detect a write conflict
                 if (result === null) {
-                  console.warn(`A write conflict was detected on the projection ${baseKey}. There may be multiple projections running on the same key.`)
+                  console.warn(`A write conflict was detected on the projection ${cursorKey}. There may be multiple projections running on the same key.`)
                   doSubscription();
                 } else {
-                  notify(baseKey);
+                  notify(cursorKey);
                 }
               }
             });
@@ -268,10 +264,8 @@ export default class RedisDatabase {
   }
 
   smembers(key) {
-    const baseKey = `projection:${key}`;
-
     return this
-        .channel(baseKey)
-        .flatMap(() => this.clients.global.smembers(baseKey));
+        .channel(`projection-cursor:${key}`)
+        .flatMap(() => this.clients.global.smembers(key));
   }
 }
