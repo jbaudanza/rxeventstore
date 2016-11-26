@@ -18,7 +18,7 @@ function transformResults(results, cursor) {
 }
 
 function validateProjectionEvent(event) {
-  if (typeof event !== 'object' || typeof event.value !== 'object') {
+  if (typeof event !== 'object' || Array.isArray(event.value)) {
     console.warn(`Malformed event for SetProjection ${this.key}`);
     return false;
   } else {
@@ -173,7 +173,7 @@ export default class RedisDatabase {
       .filter(filterEmpty)
   }
 
-  runProjection(key, resumable) {
+  runProjection(key, resumable, logObserver) {
     const cursorKey = `projection-cursor:${key}`;
 
     const notify = this.notify.bind(this);
@@ -187,6 +187,15 @@ export default class RedisDatabase {
     let transactionClient;
     let lastCursor = null;
 
+    function logger(arg) {
+      if (logObserver) {
+        if (typeof arg === 'string') {
+          logObserver.next(`Projection ${key}: ` + arg);
+        } else {
+          logObserver.next(arg);
+        }
+      }
+    }
 
     function startTransaction() {
       if (!transactionClient) {
@@ -195,7 +204,8 @@ export default class RedisDatabase {
 
           redis.get(cursorKey).then((currentCursor) => {
             if (lastCursor !== currentCursor) {
-              // TODO: Abort and resubscribe
+              logger('Out of sync with redis. There may be multiple projections running on the same key.')
+              doSubscription();
               return;
             }
 
@@ -217,7 +227,7 @@ export default class RedisDatabase {
               } else {
                 // Detect a write conflict
                 if (result === null) {
-                  console.warn(`A write conflict was detected on the projection ${cursorKey}. There may be multiple projections running on the same key.`)
+                  logger('Write conflict was detected. There may be multiple projections running on the same key.')
                   doSubscription();
                 } else {
                   notify(cursorKey);
@@ -232,24 +242,36 @@ export default class RedisDatabase {
       }
     }
 
+    function next(event) {
+      if (typeof event !== 'object' || !Array.isArray(event.value)) {
+        logger('Malformed event received. Skipping.');
+        return;
+      }
+
+      queuedEvents.push(event);
+      startTransaction();
+    }
+
     function doSubscription() {
       redis.get(cursorKey).then((cursor) => {
         if (cancelled)
           return;
 
-        if (subscription)
+        if (subscription) {
           subscription.unsubscribe();
+          subscription = null;
+          logger('Restarting.');
+        } else {
+          logger('Starting.');
+        }
 
         const observable = resumable(cursor);
         lastCursor = cursor;
 
-        // TODO: What happens on error or completed?
-        subscription = observable.subscribe(function(event) {
-          if (!validateProjectionEvent(event))
-            return;
-
-          queuedEvents.push(event);
-          startTransaction();
+        subscription = observable.subscribe({
+          next: next,
+          error: (err) => { logger('Error raised. Shutting down.'); logger(error) },
+          complete: () => { logger('Stream complete. Shutting down.'); }
         });
       });
     }
@@ -257,6 +279,7 @@ export default class RedisDatabase {
     doSubscription();
 
     return function() {
+      logger('Shutting down.')
       cancelled = true;
       if (subscription)
         subscription.unsubscribe()

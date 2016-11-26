@@ -20,12 +20,14 @@ describe('RedisDatabase', () => {
   itShouldActLikeANotifier(factory);
   itShouldActLikeAnEventStore(factory);
 
-  describe.only('.runProjection', () => {
+  describe('.runProjection', () => {
     it('should work', function() {
       const key = uuid.v4();
       const db = factory();
 
       const opSubject = new Rx.ReplaySubject(10);
+      const logSubject = new Rx.Subject();
+      //logSubject.subscribe((x) => console.log(x));
 
       opSubject.next({
         cursor: 1,
@@ -42,7 +44,7 @@ describe('RedisDatabase', () => {
         return opSubject.skip(cursor || 0);
       }
 
-      let stop = db.runProjection(key, resumable);
+      let stop = db.runProjection(key, resumable, logSubject);
       const members = db.smembers(key);
 
       return members
@@ -61,7 +63,7 @@ describe('RedisDatabase', () => {
               ]
             });
 
-            stop = db.runProjection(key, resumable);
+            stop = db.runProjection(key, resumable, logSubject);
 
             return members
               .takeUntil(Rx.Observable.of(1).delay(500))
