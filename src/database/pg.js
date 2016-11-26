@@ -96,7 +96,7 @@ export default class PgDatabase {
     }
 
     const [where, params] = toSQL(filters);
-    const sql = `SELECT * FROM events WHERE ${where} ORDER BY id ASC`;
+    const sql = `SELECT id, (timestamp AT TIME ZONE 'utc') AS timestamp, actor, key, process_id, connection_id, session_id, ip_address, data FROM events WHERE ${where} ORDER BY id ASC`;
 
     let transformValues;
     if (options.includeMetadata) {
@@ -206,7 +206,7 @@ export default class PgDatabase {
 
     const [filterWhere, filterValues] = toSQL(filters);
 
-    const ageSql = `(NOW() - cast($${filterValues.length + 1} AS interval))`;
+    const ageSql = `(NOW() AT TIME ZONE 'utc' - cast($${filterValues.length + 1} AS interval))`;
 
     const sql = `
       SELECT
@@ -237,7 +237,7 @@ export default class PgDatabase {
 const INSERT_SQL = `
   INSERT INTO events (
       timestamp, actor, key, process_id, connection_id, session_id, ip_address, data
-  ) VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7)
+  ) VALUES (NOW() AT TIME ZONE 'utc', $1, $2, $3, $4, $5, $6, $7)
   RETURNING *
 `;
 

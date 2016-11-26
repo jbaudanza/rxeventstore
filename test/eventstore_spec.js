@@ -138,6 +138,20 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
             assert.deepEqual(results, [1,3]);
           });
     });
+
+    it('should create a timestamp', () => {
+      const key = uuid.v4();
+      const eventStore = eventStoreFactory();
+      const now = new Date();
+
+      return eventStore.insertEvent(key, 'hello')
+        .then(() => eventStore.query(key, {includeMetadata: 'timestamp'}))
+        .then(function(results) {
+          assert(results[0]);
+          assert(results[0].timestamp instanceof Date);
+          assert(Math.abs(now - results[0].timestamp) < 100);
+        })
+    });
   });
 
   describe('.observable', () => {

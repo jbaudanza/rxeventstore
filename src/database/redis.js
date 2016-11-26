@@ -10,10 +10,14 @@ import promisify from '../promisify';
 
 import RedisConnections from './redis_connections';
 
+function parseTimestamp(obj) {
+  return Object.assign({}, obj, {timestamp: new Date(obj.timestamp)});
+}
+
 function transformResults(results, cursor) {
   return {
     cursor: cursor + results.length,
-    value: results.reverse().map(JSON.parse)
+    value: results.reverse().map(JSON.parse).map(parseTimestamp)
   }
 }
 
