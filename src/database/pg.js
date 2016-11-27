@@ -51,6 +51,8 @@ export default class PgDatabase {
               function() { observer.next('ready'); },
               function(err) { observer.error(err); }
           )
+        } else {
+          observer.next('ready');
         }
 
         client.subscriptionRefCounts[key]++;

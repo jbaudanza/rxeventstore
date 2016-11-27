@@ -41,8 +41,9 @@ export function itShouldActLikeANotifier(notifierFactory) {
     });
     // Subscribe again. This shouldn't cause a duplicate LISTEN operation
     // on the underlying datastore
-    const sub2 = obs.subscribe(function() {
-      assert(false, 'this observer should never be called');
+    const sub2 = obs.subscribe(function(value) {
+      // This should only ever receive the ready event
+      assert.equal(value, 'ready');
     });
 
     // We need to wait for both subscriptions to become active

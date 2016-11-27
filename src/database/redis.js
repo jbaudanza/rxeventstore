@@ -77,6 +77,8 @@ export default class RedisDatabase {
 
       if (this.clients.subscriptions.subscriptionRefCounts[key] === 0) {
         this.clients.subscriptions.subscribe(key, onReady);
+      } else {
+        onReady(null, null);
       }
 
       this.clients.subscriptions.subscriptionRefCounts[key]++;
