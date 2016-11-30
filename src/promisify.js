@@ -1,6 +1,6 @@
 // This instruments an object methods with new methods that return promises
 // instead of callbacks.
-export default function promisify(object, ...methods) {
+export default function promisify(object, methods) {
   const properties = {};
 
   methods.forEach(function(method) {
@@ -13,7 +13,7 @@ export default function promisify(object, ...methods) {
         }));
       });
     };
-    properties[method] = {value: value};
+    properties[method] = {value: value, writable: true};
   });
 
   return Object.create(object, properties);

@@ -227,7 +227,11 @@ export default class RedisDatabase {
 
             queuedEvents.forEach(function(e) {
               e.value.forEach(function(op) {
-                multi[op[0]].apply(multi, op.slice(1))
+                if (typeof multi[op[0]] === 'function') {
+                  multi[op[0]].apply(multi, op.slice(1));
+                } else {
+                  console.warn("Invalid redis op:", op[0]);
+                }
               });
             });
 
@@ -284,7 +288,7 @@ export default class RedisDatabase {
 
         subscription = observable.subscribe({
           next: next,
-          error: (err) => { logger('Error raised. Shutting down.'); logger(error) },
+          error: (err) => { logger('Error raised. Shutting down.'); logger(err) },
           complete: () => { logger('Stream complete. Shutting down.'); }
         });
       });

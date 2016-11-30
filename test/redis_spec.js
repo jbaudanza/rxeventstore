@@ -5,7 +5,6 @@ import fakeredis from 'fakeredis';
 import uuid from 'node-uuid';
 
 import RedisDatabase from '../lib/database/redis';
-import SetProjection from '../lib/database/set_projection';
 
 import {itShouldActLikeANotifier} from './notifier_spec';
 import {itShouldActLikeAnEventStore} from './eventstore_spec';

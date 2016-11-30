@@ -1,14 +1,13 @@
 import genericPool from 'generic-pool';
 import promisify from '../promisify';
+import redisCommands from 'redis-commands';
 
+import {without} from 'lodash';
 
 export default class RedisConnections {
   constructor(url, driver) {
     function createClient() {
-      return promisify(
-          driver.createClient(url),
-          'get', 'set', 'publish', 'lpush', 'lrange', 'srem', 'sadd', 'smembers'
-      );
+      return promisify(driver.createClient(url), without(redisCommands.list, 'multi'));
     }
 
     //
