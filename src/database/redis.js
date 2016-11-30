@@ -30,6 +30,14 @@ function validateProjectionEvent(event) {
   }
 }
 
+function castCursor(cursor) {
+  if (typeof cursor === 'string' && /^\d+$/.test(cursor)) {
+    return parseInt(cursor);
+  } else {
+    return cursor;
+  }
+}
+
 function postProcessFunction(options) {
   let filterBatchFn;
   if (typeof options.filters === 'object') {
@@ -208,7 +216,7 @@ export default class RedisDatabase {
         transactionClient = pool.acquire().then((redis) => {
           redis.watch(cursorKey);
 
-          redis.get(cursorKey).then((currentCursor) => {
+          redis.get(cursorKey).then(castCursor).then((currentCursor) => {
             if (lastCursor !== currentCursor) {
               logger('Out of sync with redis. There may be multiple projections running on the same key.')
               doSubscription();
@@ -259,7 +267,7 @@ export default class RedisDatabase {
     }
 
     function doSubscription() {
-      redis.get(cursorKey).then((cursor) => {
+      redis.get(cursorKey).then(castCursor).then((cursor) => {
         if (cancelled)
           return;
 
