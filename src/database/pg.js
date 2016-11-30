@@ -93,6 +93,10 @@ export default class PgDatabase {
     // Convert the filter keys into underscores
     filters = mapKeys(filters, (v, k) => camelToUnderscore(k));
 
+    if (typeof options.cursor === 'string') {
+      console.warn('Received a cursor of type string. number or null expected ')
+    }
+
     if (typeof options.cursor === 'number') {
       filters.id = {$gt: options.cursor};
     }
