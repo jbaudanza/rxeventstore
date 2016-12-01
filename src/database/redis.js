@@ -218,7 +218,8 @@ export default class RedisDatabase {
 
           redis.get(cursorKey).then(castCursor).then((currentCursor) => {
             if (lastCursor !== currentCursor) {
-              logger('Out of sync with redis. There may be multiple projections running on the same key.')
+              logger(`Cursor out of sync with redis. There may be multiple projections running on the same key. Redis: ${currentCursor}, Memory: ${lastCursor}`)
+              transactionClient = null;
               doSubscription();
               return;
             }
@@ -235,7 +236,8 @@ export default class RedisDatabase {
               });
             });
 
-            multi.set(cursorKey, last(queuedEvents).cursor);
+            const nextCursor = last(queuedEvents).cursor;
+            multi.set(cursorKey, nextCursor);
 
             multi.exec((err, result) => {
               pool.release(redis);
@@ -248,6 +250,7 @@ export default class RedisDatabase {
                   logger('Write conflict was detected. There may be multiple projections running on the same key.')
                   doSubscription();
                 } else {
+                  lastCursor = nextCursor;
                   notify(cursorKey);
                 }
               }
@@ -285,6 +288,8 @@ export default class RedisDatabase {
 
         const observable = resumable(cursor);
         lastCursor = cursor;
+
+        queuedEvents = [];
 
         subscription = observable.subscribe({
           next: next,
