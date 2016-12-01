@@ -188,8 +188,6 @@ export default class RedisDatabase {
   }
 
   runProjection(key, resumable, logObserver) {
-    const cursorKey = `projection-cursor:${key}`;
-
     const notify = this.notify.bind(this);
     const pool = this.clients.pool;
     const redis = this.clients.global;
@@ -214,9 +212,9 @@ export default class RedisDatabase {
     function startTransaction() {
       if (!transactionClient) {
         transactionClient = pool.acquire().then((redis) => {
-          redis.watch(cursorKey);
+          redis.watch(key);
 
-          redis.get(cursorKey).then(castCursor).then((currentCursor) => {
+          redis.get(key).then(castCursor).then((currentCursor) => {
             if (lastCursor !== currentCursor) {
               logger(`Cursor out of sync with redis. There may be multiple projections running on the same key. Redis: ${currentCursor}, Memory: ${lastCursor}`)
               transactionClient = null;
@@ -237,7 +235,7 @@ export default class RedisDatabase {
             });
 
             const nextCursor = last(queuedEvents).cursor;
-            multi.set(cursorKey, nextCursor);
+            multi.set(key, nextCursor);
 
             multi.exec((err, result) => {
               pool.release(redis);
@@ -251,7 +249,7 @@ export default class RedisDatabase {
                   doSubscription();
                 } else {
                   lastCursor = nextCursor;
-                  notify(cursorKey);
+                  notify(key);
                 }
               }
             });
@@ -274,7 +272,7 @@ export default class RedisDatabase {
     }
 
     function doSubscription() {
-      redis.get(cursorKey).then(castCursor).then((cursor) => {
+      redis.get(key).then(castCursor).then((cursor) => {
         if (cancelled)
           return;
 
@@ -307,11 +305,5 @@ export default class RedisDatabase {
       if (subscription)
         subscription.unsubscribe()
     }
-  }
-
-  smembers(key) {
-    return this
-        .channel(`projection-cursor:${key}`)
-        .flatMap(() => this.clients.global.smembers(key));
   }
 }

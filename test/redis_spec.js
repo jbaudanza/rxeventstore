@@ -23,6 +23,7 @@ describe('RedisDatabase', () => {
     it('should work', function() {
       const key = uuid.v4();
       const db = factory();
+      const projectionKey = 'projection:' + key;
 
       const opSubject = new Rx.ReplaySubject(10);
       const logSubject = new Rx.Subject();
@@ -43,8 +44,9 @@ describe('RedisDatabase', () => {
         return opSubject.skip(cursor || 0);
       }
 
-      let stop = db.runProjection(key, resumable, logSubject);
-      const members = db.smembers(key);
+      let stop = db.runProjection(projectionKey, resumable, logSubject);
+      const members = db.channel(projectionKey)
+          .flatMap(() => db.clients.global.smembers(key));
 
       return members
         .takeUntil(Rx.Observable.of(1).delay(500))
@@ -62,7 +64,7 @@ describe('RedisDatabase', () => {
               ]
             });
 
-            stop = db.runProjection(key, resumable, logSubject);
+            stop = db.runProjection(projectionKey, resumable, logSubject);
 
             return members
               .takeUntil(Rx.Observable.of(1).delay(500))
