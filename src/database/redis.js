@@ -224,13 +224,27 @@ export default class RedisDatabase {
 
             const multi = redis.multi();
 
+            const channels = new Set();
+
             queuedEvents.forEach(function(e) {
               e.value.forEach(function(op) {
-                if (typeof multi[op[0]] === 'function') {
-                  multi[op[0]].apply(multi, op.slice(1));
-                } else {
-                  console.warn("Invalid redis op:", op[0]);
+                if (!Array.isArray(op)) {
+                  console.warn('Expected operation to be an Array: ', op);
+                  return;
                 }
+
+                if (op.length < 2) {
+                  console.warn('Operation must have at least 2 elements: ', op);
+                  return;
+                }
+
+                if (!(typeof multi[op[0]] === 'function')) {
+                  console.warn("Invalid redis op:", op[0]);
+                  return;
+                }
+
+                multi[op[0]].apply(multi, op.slice(1));
+                channels.add(op[1]);
               });
             });
 
@@ -249,7 +263,7 @@ export default class RedisDatabase {
                   doSubscription();
                 } else {
                   lastCursor = nextCursor;
-                  notify(key);
+                  channels.forEach(notify);
                 }
               }
             });

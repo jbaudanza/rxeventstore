@@ -45,7 +45,7 @@ describe('RedisDatabase', () => {
       }
 
       let stop = db.runProjection(projectionKey, resumable, logSubject);
-      const members = db.channel(projectionKey)
+      const members = db.channel(key)
           .flatMap(() => db.clients.global.smembers(key));
 
       return members
