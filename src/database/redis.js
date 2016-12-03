@@ -67,6 +67,9 @@ function postProcessFunction(options) {
   }
 }
 
+function cursorKey(key) {
+  return `projection-cursor:${key}`;
+}
 
 export default class RedisDatabase {
   constructor(url, driver=redisDriver) {
@@ -212,9 +215,9 @@ export default class RedisDatabase {
     function startTransaction() {
       if (!transactionClient) {
         transactionClient = pool.acquire().then((redis) => {
-          redis.watch(key);
+          redis.watch(cursorKey(key));
 
-          redis.get(key).then(castCursor).then((currentCursor) => {
+          redis.get(cursorKey(key)).then(castCursor).then((currentCursor) => {
             if (lastCursor !== currentCursor) {
               logger(`Cursor out of sync with redis. There may be multiple projections running on the same key. Redis: ${currentCursor}, Memory: ${lastCursor}`)
               transactionClient = null;
@@ -249,7 +252,7 @@ export default class RedisDatabase {
             });
 
             const nextCursor = last(queuedEvents).cursor;
-            multi.set(key, nextCursor);
+            multi.set(cursorKey(key), nextCursor);
 
             multi.exec((err, result) => {
               pool.release(redis);
@@ -286,7 +289,7 @@ export default class RedisDatabase {
     }
 
     function doSubscription() {
-      redis.get(key).then(castCursor).then((cursor) => {
+      redis.get(cursorKey(key)).then(castCursor).then((cursor) => {
         if (cancelled)
           return;
 
