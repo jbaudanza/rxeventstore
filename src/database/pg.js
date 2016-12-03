@@ -102,7 +102,7 @@ export default class PgDatabase {
     }
 
     const [where, params] = toSQL(filters);
-    const sql = `SELECT id, (timestamp AT TIME ZONE 'utc') AS timestamp, actor, key, process_id, connection_id, session_id, ip_address, data FROM events WHERE ${where} ORDER BY id ASC`;
+    const sql = `SELECT id, (timestamp AT TIME ZONE 'utc') AS timestamp, actor, key, process_id, connection_id, session_id, ip_address, aggregate_root, data FROM events WHERE ${where} ORDER BY id ASC`;
 
     let transformValues;
     if (options.includeMetadata) {
@@ -110,7 +110,7 @@ export default class PgDatabase {
       if (Array.isArray(options.includeMetadata)) {
         fields = options.includeMetadata;
       } else {
-        fields = ['id', 'timestamp', 'processId', 'sessionId', 'actor']
+        fields = ['id', 'timestamp', 'processId', 'sessionId', 'actor', 'aggregateRoot']
       }
       transformValues = transformEvent.bind(undefined, fields);
     } else {
@@ -183,7 +183,8 @@ export default class PgDatabase {
         processId,
         meta.connectionId,
         meta.sessionId,
-        meta.ipAddress
+        meta.ipAddress,
+        meta.aggregateRoot
       ];
 
       function done() { client.release(); }
@@ -242,8 +243,8 @@ export default class PgDatabase {
 
 const INSERT_SQL = `
   INSERT INTO events (
-      timestamp, actor, key, process_id, connection_id, session_id, ip_address, data
-  ) VALUES (NOW() AT TIME ZONE 'utc', $1, $2, $3, $4, $5, $6, $7)
+      timestamp, actor, key, process_id, connection_id, session_id, ip_address, aggregate_root, data
+  ) VALUES (NOW() AT TIME ZONE 'utc', $1, $2, $3, $4, $5, $6, $7, $8)
   RETURNING *
 `;
 
@@ -297,6 +298,10 @@ function transformEvent(fields, row) {
 
   if (includes(fields, 'sessionId') && row.session_id) {
     obj.sessionId = row.session_id;
+  }
+
+  if (includes(fields, 'aggregateRoot') && row.aggregate_root) {
+    obj.aggregateRoot = row.aggregate_root;
   }
 
   if (includes(fields, 'actor') && row.actor) {

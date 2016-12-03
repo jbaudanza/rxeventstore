@@ -5,7 +5,10 @@ import {times, flatten, identity} from 'lodash';
 
 function insertEvents(eventStore, key, count, iteratee) {
   const sessionId = uuid.v4();
-  return eventStore.insertEvents(key, times(count, iteratee), {sessionId});
+  return eventStore.insertEvents(key, times(count, iteratee), {
+    sessionId: sessionId,
+    aggregateRoot: 'hello-123'
+  });
 }
 
 function wait(ms) {
@@ -97,6 +100,7 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
             assert(results[0]);
             assert('timestamp' in results[0]);
             assert('processId' in results[0]);
+            assert('aggregateRoot' in results[0]);
             assert.equal(results[0].value, 0);
           });
     });

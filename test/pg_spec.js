@@ -10,7 +10,7 @@ import {itShouldActLikeAnEventStore} from './eventstore_spec';
 
 
 function factory() {
-  return new PgDatabase("postgres://localhost/jindo_test");
+  return new PgDatabase("postgres://localhost/rxeventstore_test");
 }
 
 function insertEvents(eventStore, key, count, iteratee) {
