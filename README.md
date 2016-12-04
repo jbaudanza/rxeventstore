@@ -80,12 +80,91 @@ database.insertEvents('counter-events', [1,2,3]).then(function() {
 // Results: [1,2,3]
 ```
 
-TODO:
-  - filtering
-  - cursors
-  - metadata
+## Cursors
+
+Observables from the EventStore can optionally include a cursor. A cursor allows you to a unsubscribe from an observable, and resubscribe later where you left off, possibly in a different process. This is useful if you need to resume an observable after a WebSocket disconnects, or you have a long running worker process to project an event stream onto another data structure.
+
+```js
+database.insertEvents('messages', ['Hello', 'World'])
+
+// Specify `null` as a cursor to start from the beginning
+var source = database.query('messages', {cursor: null});
+
+const subscription = source.subscribe(
+    function (x) {
+        console.log('Next: ' + x);
+    },
+    function (err) {
+        console.log('Error: ' + err);
+    },
+    function () {
+        console.log('Completed');
+    });
+
+// Next: [{cursor: 2, value: ['hello', 'world']}]
+
+// .. at some point in the future
+database.insertEvents('messages', ['Foo', 'Bar']);
+
+// Pass in the last cursor that was emitted by the first subscription
+var source = database.query('messages', {cursor: 2});
+
+const subscription = source.subscribe(
+    function (x) {
+        console.log('Next: ' + x);
+    },
+    function (err) {
+        console.log('Error: ' + err);
+    },
+    function () {
+        console.log('Completed');
+    });
+    
+// Next: [{cursor: 4, value: ['foo', 'bar']}]
+
+```
+
+## Metadata
+
+When an event is inserted into the store, you can include various metadata that describes when/where and who created the event. RxEventStore supports the following metadata fields:
+
+ - `id` - An integer that is guaranteed to be unique for that particiular datastore.
+ - `timestamp` - A Date object that describes when the event occured
+ - `processId` - A uuid of the process that wrote the event into the datastore
+ - `sessionId` - A uuid that uniquely identifies the browser session of the user that created the event.
+ - `actor` - A JSON structure that identifies the user that created the event.
+ - `aggregateRoot` - A string that be used to group events around a common root, such as a chat room, or blog post.
+
+## Filtering
+
+Observables can optionally filter by metadata.
+
+```js
+var source = database.query('comments', {
+  filters: {aggregateRoot: 'blog-post-3'}
+});
+```
+
+This could also be accomplished by using an RxJs filter operator. The advantage
+of the previous method is that the filtering can happen in SQL.
+
+```js
+var source = database.query('comments', {includeMetadata: 'aggregateRoot'})
+  .filter(e => e.aggregateRoot === 'blog-post-3')
+```
+
+You can also can more complicated filters. For example, you might want to only
+receive the events created within the past hour.
+
+```js
+var source = database.query('pings', {
+  timestamp: {$gt: new Date(Date.now() - 60 * 60 * 1000)}
+});
+```
 
 ## Notifications
+
+TODO: Write me
 
 ## Projections
 
