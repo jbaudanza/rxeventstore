@@ -238,13 +238,14 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
       const inserts = insertEvents(eventStore, key, 3);
       return inserts.then(
           () => eventStore
-            .observable(key, {includeMetadata: ['sessionId', 'timestamp']})
+            .observable(key, {includeMetadata: ['id', 'sessionId', 'timestamp']})
             .take(1)
             .toPromise()
         ).then(function(results) {
           assert.equal(3, results.length);
 
           assert(results[0]);
+          assert('id' in results[0]);
           assert('sessionId' in results[0]);
           assert('timestamp' in results[0]);
           assert(!('processId' in results[0]));

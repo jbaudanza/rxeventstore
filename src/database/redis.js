@@ -135,15 +135,20 @@ export default class RedisDatabase {
     if (events.length === 0)
       return;
 
-    const values = events.map((event) => (
-      JSON.stringify(Object.assign({
-        value: event,
-        processId: processId,
-        timestamp: Date.now()
-      }, meta))
-    ));
+    const promise = this.clients.global.incrby('event-id', events.length).then((lastId) => {
+      const firstId = lastId - events.length + 1;
 
-    const promise = this.clients.global.lpush(key, ...values);
+      const values = events.map((event, i) => (
+        JSON.stringify(Object.assign({
+          id: firstId + i,
+          value: event,
+          processId: processId,
+          timestamp: Date.now()
+        }, meta))
+      ));
+
+      return this.clients.global.lpush(key, ...values);
+    });
 
     promise.then(() => {
       this.notify(key);
