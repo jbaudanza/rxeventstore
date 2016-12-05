@@ -173,5 +173,32 @@ Sometimes, querying the event log is not the most efficient way to inquire about
 Projections are generated and updated via the event log. They are considered denormalized views of your event log. Projections are updated by creating new events, and never by writing to the projections directly.
 
 ```js
-TODO: Put a projection code sample here
+database.insertEvent('marbles', 'red');
+database.insertEvent('marbles', 'green');
+database.insertEvent('marbles', 'blue');
+database.insertEvent('marbles', 'red');
+
+function resume(cursor) {
+  return database.observable('marbles').map(function(batch) {
+    var count = batch.value.filter((color) => color === 'red').length;
+    return {
+      cursor: cursor,
+      ops: [
+        ['incrby', 'red-marble-counter', count]
+      ]
+    };
+  });
+}
+
+database.runProjection('red-marbles-counter', resume);
+
+function redMarbleCounter() {
+  return database.channel('red-marbles-counter').switchMap(function() {
+    database.client.get('red-marble-counter');
+  });
+}
+
+redMarbleCounter().subscribe(count => console.log('Next: ' + count));
+// Next: 2
+
 ```
