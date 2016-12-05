@@ -172,11 +172,10 @@ Sometimes, querying the event log is not the most efficient way to inquire about
 
 Projections are generated and updated via the event log. They are considered denormalized views of your event log. Projections are updated by creating new events, and never by writing to the projections directly.
 
+You will need a worker process that keeps the projection up to date. Only one worker should run on projection at once.
+
+worker.js
 ```js
-database.insertEvent('marbles', 'red');
-database.insertEvent('marbles', 'green');
-database.insertEvent('marbles', 'blue');
-database.insertEvent('marbles', 'red');
 
 function resume(cursor) {
   return database.observable('marbles').map(function(batch) {
@@ -190,7 +189,19 @@ function resume(cursor) {
   });
 }
 
+// This will subscribe to the observable and begin updating the projection when new events come in. The observable
+// should map events onto redis commands, as shown above.
 database.runProjection('red-marbles-counter', resume);
+
+```
+
+Elsewhere in your application, you can subscribe to the projection just like and other observable.
+
+```js
+database.insertEvent('marbles', 'red');
+database.insertEvent('marbles', 'green');
+database.insertEvent('marbles', 'blue');
+database.insertEvent('marbles', 'red');
 
 function redMarbleCounter() {
   return database.channel('red-marbles-counter').switchMap(function() {
