@@ -74,6 +74,7 @@ function cursorKey(key) {
 export default class RedisDatabase {
   constructor(url, driver=redisDriver) {
     this.clients = new RedisConnections(url, driver);
+    this.client = this.clients.global;
   }
 
   channel(key) {
