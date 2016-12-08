@@ -200,21 +200,21 @@ The first event that is emitted is always 'ready'. This signals that the subscri
 
 ## Projections
 
-Sometimes, querying the event log is not the most efficient way to inquire about the state of your application. In these cases, it can make sense to project you event log onto another more appropriate data structure. These secondary data structures called "projections", and RxEventStore has a mechanism to help you maintain them.
+Sometimes, querying the event log is not the most efficient way to inquire about the state of your application. In these cases, it can make sense to project your event log onto another more appropriate data structure. These secondary data structures called "projections", and RxEventStore has a mechanism to help you maintain them.
 
-Projections are generated and updated via the event log. They are considered denormalized views of your event log. Projections are updated by creating new events, and never by writing to the projections directly.
+Projections are only generated and updated via the event log. They are considered denormalized views. Projections are updated by creating new events, and never by writing to the projections directly.
 
-You will need a worker process that keeps the projection up to date. Only one worker should run on projection at once.
+### Writing to projections
 
-worker.js
+You will need a worker process that keeps the projection up to date. The worker is started by calling the `runProjection` function.
+
 ```js
-
 function resume(cursor) {
   return database.observable('marbles').map(function(batch) {
     var count = batch.value.filter((color) => color === 'red').length;
     return {
       cursor: cursor,
-      ops: [
+      value: [
         ['incrby', 'red-marble-counter', count]
       ]
     };
@@ -223,9 +223,50 @@ function resume(cursor) {
 
 // This will subscribe to the observable and begin updating the projection when new events come in. The observable
 // should map events onto redis commands, as shown above.
-database.runProjection('red-marbles-counter', resume);
+var stop = database.runProjection('red-marbles-counter', resume);
+
+// Invoking stop() will shutdown the projection worker
 
 ```
+
+The `runProjection` functions expects a unique name for the projection and a function that generates an Observable of redis commands.
+
+The observable you pass must emit `Object` values with a `cursor` and `value` attribute.
+
+The `cursor` attribute must be a number, string, or JSON serializable Javascript object. In the case that the projection needs to restart, this cursor wil be passed into the observable constructor function that you specificy.
+
+The `value` attribute must be an array of redis commands. These commands will all be run atomically inside of a `MULTI` block. 
+
+After each block of commands is executed, the projection will notify the channel of any key that was updated. For example, consider the following Object.
+
+```
+{
+    cursor: '123', 
+    value: [
+      ['set', 'foo', 1],
+      ['set', 'bar', 2],
+      ['incr', 'counter'],
+    ]
+}
+```
+
+When emitted from an observable, it will cause the following projection update:
+
+```
+MULTI
+SET foo 1
+SET bar 2
+INCR counter
+EXEC
+PUBLISH foo
+PUBLISH bar
+PUBLISH counter
+```
+
+Only one worker should run on projection at once. Running more than one worker won't cause any data corruption, but it will be inefficient and generate warnings.
+
+
+### Reading from projections
 
 Elsewhere in your application, you can subscribe to the projection just like and other observable.
 
