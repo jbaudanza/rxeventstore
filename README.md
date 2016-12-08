@@ -263,12 +263,15 @@ PUBLISH bar
 PUBLISH counter
 ```
 
-Only one worker should run on projection at once. Running more than one worker won't cause any data corruption, but it will be inefficient and generate warnings.
+The original source that drives your observable to emit these values is up to you, but it must support the use of a cursor somehow to resume operation. 
 
+Only one worker should run on projection at once. Running more than one worker won't cause any data corruption, but it will be inefficient and generate warnings.
 
 ### Reading from projections
 
-Elsewhere in your application, you can subscribe to the projection just like and other observable.
+In order to subscribe to a projection, you need to subscribe to the relevant notification channel and map updates onto the appropriate redis commands.
+
+To help with this, the redis driver contains a `.client` attribute. This is a normal redis client that has been instrumented with Promises.
 
 ```js
 database.insertEvent('marbles', 'red');
