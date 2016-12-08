@@ -263,7 +263,23 @@ PUBLISH bar
 PUBLISH counter
 ```
 
-The original source that drives your observable to emit these values is up to you, but it must support the use of a cursor somehow to resume operation. 
+The original source that drives your observable to emit these values is up to you, but it must support the use of a cursor somehow to resume operation. You are probably going to drive the observable from some database observable of user actions. For example:
+
+```
+function resume(cursor) {
+  return database.observable('comments', {cusor: cursor})
+    .map(function(result) {
+      return {
+        cursor: result.cursor,
+        value: [
+          ['INCRBY', 'comment-counter', result.value.length]
+        ]
+      }
+    })
+}
+
+runProjection('comment-counter', resume);
+```
 
 Only one worker should run on projection at once. Running more than one worker won't cause any data corruption, but it will be inefficient and generate warnings.
 
