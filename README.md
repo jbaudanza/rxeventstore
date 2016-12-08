@@ -164,7 +164,39 @@ var source = database.query('pings', {
 
 ## Notifications
 
-TODO: Write me
+A real time application needs some mechanism on the backend to trigger updates when new data is available. Both Redis and PostgreSQL provide such mechanisms. Redis has `PUBLISH` and `SUBSCRIBE` commands and PostgreSQL has `NOTIFY` and `LISTEN`.
+
+If you are using the `database.observable()` you don't need to worry about notifications. This is handled for you. If you are writing projections, or some other custom data structure, then you may need to interact with the notifications API directly.
+
+RxEventStore provides an API to map Redis and PostgreSQL's notificiation functionality onto an Observable object.
+
+```js
+// database can be an instance of PgDatabase or RedisDatabase. The APIs are the same
+var source = database.channel('messages');
+
+source.subscribe(
+    function (x) {
+        console.log('Next: ' + x);
+    },
+    function (err) {
+        console.log('Error: ' + err);
+    },
+    function () {
+        console.log('Completed');
+    });
+
+// The first event that is emitted is always 'ready'.
+// Next: 'ready'
+
+database.notify('messages', 'hello');
+database.notify('messages', 'world');
+
+// Next: 'hello'
+// Next: 'world'
+```
+
+The first event that is emitted is always 'ready'. This signals that the subscription to the channel is online and any new messages on the channel will be received.
+
 
 ## Projections
 
