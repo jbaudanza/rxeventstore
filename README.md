@@ -26,7 +26,7 @@ RxEventStore has drivers that use both Redis and PostgreSQL to store and query e
 There are two ways to pull data out of the event store. The first is to use the `.observable()` function that returns an RxJs Observable that emits all the current events and any future events as they happen:
 
 ```js
-var PgDatabase = require('rxeventstore/database/pg');
+var PgDatabase = require('rxeventstore/pg'); // or require('rxeventstore/redis')
 
 // Connect to an instance of postgres. The redis API is almost identical
 var database = new PgDatabase("postgres://localhost/databasename");

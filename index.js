@@ -1,2 +1,5 @@
 require('babel-polyfill')
-module.exports = require('./lib').default
+module.exports = {
+  RedisDatabase: require('./lib/database/redis').default,
+  PgDatabase: require('./lib/database/pg').default
+};

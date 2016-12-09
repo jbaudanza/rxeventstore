@@ -4,7 +4,7 @@ import Rx from 'rxjs';
 import fakeredis from 'fakeredis';
 import uuid from 'node-uuid';
 
-import RedisDatabase from '../lib/database/redis';
+import RedisDatabase from '../redis';
 
 import {itShouldActLikeANotifier} from './notifier_spec';
 import {itShouldActLikeAnEventStore} from './eventstore_spec';
