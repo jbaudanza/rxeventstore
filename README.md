@@ -131,7 +131,7 @@ const subscription = source.subscribe(
 An event can optionally by stored with metadata that describes when/where and who created the event. RxEventStore supports the following metadata fields:
 
  - `sessionId` - A uuid that uniquely identifies the browser session of the user that created the event.
- - 'ipAddress' - A string that identifies an IPv4 or IPV6 IP address
+ - `ipAddress` - A string that identifies an IPv4 or IPV6 IP address
  - `actor` - A JSON structure that identifies the user that created the event.
  - `aggregateRoot` - A string that be used to group events around a common root, such as a chat room, or blog post.
 
@@ -286,7 +286,7 @@ PUBLISH counter
 
 The original source that drives your observable to emit these values is up to you, but it must support the use of a cursor somehow to resume operation. It's likely that you'll drive this from some database observable of user actions. For example:
 
-```
+```js
 function resume(cursor) {
   return database.observable('comments', {cusor: cursor})
     .map(function(result) {
