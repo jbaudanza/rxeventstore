@@ -40,16 +40,7 @@ database.insertEvent('counter-events', 3);
 // This returns an RxJs Observable. The first parameter should make the key that was passed into insertEvent()
 var source = database.observable('counter-events');
 
-const subscription = source.subscribe(
-    function (x) {
-        console.log('Next: ' + x);
-    },
-    function (err) {
-        console.log('Error: ' + err);
-    },
-    function () {
-        console.log('Completed');
-    });
+source.subscribe((x) => console.log('Next: ' + x));
 
 // Notice that each invocation of next() includes a *batch* of events, not a single event.
 // => Next: [1, 2, 3]
@@ -92,16 +83,7 @@ database.insertEvents('messages', ['Hello', 'World'])
 // Specify `null` as a cursor to start from the beginning
 var source = database.query('messages', {cursor: null});
 
-const subscription = source.subscribe(
-    function (x) {
-        console.log('Next: ' + x);
-    },
-    function (err) {
-        console.log('Error: ' + err);
-    },
-    function () {
-        console.log('Completed');
-    });
+source.subscribe((x) => console.log('Next: ' + x));
 
 // Next: [{cursor: 2, value: ['hello', 'world']}]
 
@@ -111,16 +93,7 @@ database.insertEvents('messages', ['Foo', 'Bar']);
 // Pass in the last cursor that was emitted by the previous subscription
 var source = database.query('messages', {cursor: 2});
 
-const subscription = source.subscribe(
-    function (x) {
-        console.log('Next: ' + x);
-    },
-    function (err) {
-        console.log('Error: ' + err);
-    },
-    function () {
-        console.log('Completed');
-    });
+source.subscribe((x) => console.log('Next: ' + x));
     
 // Next: [{cursor: 4, value: ['foo', 'bar']}]
 
@@ -195,16 +168,7 @@ RxEventStore provides an API to map Redis and PostgreSQL's notificiation functio
 // database can be an instance of PgDatabase or RedisDatabase. The APIs are the same
 var source = database.channel('messages');
 
-source.subscribe(
-    function (x) {
-        console.log('Next: ' + x);
-    },
-    function (err) {
-        console.log('Error: ' + err);
-    },
-    function () {
-        console.log('Completed');
-    });
+source.subscribe((x) => console.log('Next: ' + x));
 
 // The first event that is emitted is always 'ready'.
 // Next: 'ready'
