@@ -1,6 +1,6 @@
 {
   "name": "rxeventstore",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "description": "Simple module for persisting and querying data using the EventStore pattern and RxJs",
   "main": "index.js",
   "scripts": {
@@ -45,6 +45,6 @@
     "pg": "^6.1.0",
     "pg-pool": "^1.5.0",
     "redis": "^2.6.3",
-    "rxjs": "5.0.0-rc.5"
+    "rxjs": "^5.0.0"
   }
 }
