@@ -7,7 +7,8 @@ function insertEvents(eventStore, key, count, iteratee) {
   const sessionId = uuid.v4();
   return eventStore.insertEvents(key, times(count, iteratee), {
     sessionId: sessionId,
-    aggregateRoot: 'hello-123'
+    aggregateRoot: 'hello-123',
+    ipAddress: '192.168.1.1'
   });
 }
 
@@ -238,7 +239,7 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
       const inserts = insertEvents(eventStore, key, 3);
       return inserts.then(
           () => eventStore
-            .observable(key, {includeMetadata: ['id', 'sessionId', 'timestamp']})
+            .observable(key, {includeMetadata: ['id', 'sessionId', 'timestamp', 'ipAddress']})
             .take(1)
             .toPromise()
         ).then(function(results) {
@@ -248,6 +249,7 @@ export function itShouldActLikeAnEventStore(eventStoreFactory) {
           assert('id' in results[0]);
           assert('sessionId' in results[0]);
           assert('timestamp' in results[0]);
+          assert('ipAddress' in results[0]);
           assert(!('processId' in results[0]));
           assert.equal(results[0].value, 0);
         });

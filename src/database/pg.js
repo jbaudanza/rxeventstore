@@ -110,7 +110,7 @@ export default class PgDatabase {
       if (Array.isArray(options.includeMetadata)) {
         fields = options.includeMetadata;
       } else {
-        fields = ['id', 'timestamp', 'processId', 'sessionId', 'actor', 'aggregateRoot']
+        fields = ['id', 'timestamp', 'processId', 'sessionId', 'actor', 'aggregateRoot', 'ipAddress']
       }
       transformValues = transformEvent.bind(undefined, fields);
     } else {
@@ -302,6 +302,10 @@ function transformEvent(fields, row) {
 
   if (includes(fields, 'aggregateRoot') && row.aggregate_root) {
     obj.aggregateRoot = row.aggregate_root;
+  }
+
+  if (includes(fields, 'ipAddress') && row.ip_address) {
+    obj.ipAddress = row.ip_address;
   }
 
   if (includes(fields, 'actor') && row.actor) {
