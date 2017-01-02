@@ -1,6 +1,6 @@
 {
   "name": "rxeventstore",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "description": "Simple module for persisting and querying data using the EventStore pattern and RxJs",
   "main": "index.js",
   "scripts": {
