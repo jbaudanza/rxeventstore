@@ -156,33 +156,6 @@ var source = database.query('pings', {
 });
 ```
 
-## Notifications
-
-A real-time application needs some mechanism on the backend to trigger updates when new data is available. Both Redis and PostgreSQL provide such mechanisms. Redis has the `PUBLISH` and `SUBSCRIBE` commands and PostgreSQL has `NOTIFY` and `LISTEN`.
-
-If you are using the `database.observable()` function you don't need to worry about notifications. This is handled for you. If you are writing projections, or some other custom data structure, then you may need to interact with the notifications API directly.
-
-RxEventStore provides an API to map Redis and PostgreSQL's notificiation functionality onto an Observable object.
-
-```js
-// database can be an instance of PgDatabase or RedisDatabase. The APIs are the same
-var source = database.channel('messages');
-
-source.subscribe((x) => console.log('Next: ' + x));
-
-// The first event that is emitted is always 'ready'.
-// Next: 'ready'
-
-database.notify('messages', 'hello');
-database.notify('messages', 'world');
-
-// Next: 'hello'
-// Next: 'world'
-```
-
-The first event that is emitted is always 'ready'. This signals that the subscription to the channel is online and any new messages on the channel will be received.
-
-
 ## Projections
 
 Sometimes, querying the event log is not the most efficient way to inquire about the state of your application. In these cases, it can make sense to project your event log onto another more appropriate data structure. These secondary data structures called "projections", and RxEventStore has a mechanism to help you maintain them.
@@ -270,7 +243,7 @@ Only one worker should run a projection at once. Running more than one worker wo
 
 ### Reading from projections
 
-In order to subscribe to a projection, you need to subscribe to the relevant notification channel and map updates onto the appropriate redis commands.
+In order to subscribe to a projection, you need to subscribe to the relevant notification channel off of the `database.notifier` attribute and map updates onto the appropriate redis commands.
 
 To help with this, the redis driver contains a `.client` attribute. This is a normal redis client that has been instrumented with Promises.
 
@@ -281,7 +254,7 @@ database.insertEvent('marbles', 'blue');
 database.insertEvent('marbles', 'red');
 
 function redMarbleCounter() {
-  return database.channel('red-marbles-counter').switchMap(function() {
+  return database.notifier.channel('red-marbles-counter').switchMap(function() {
     database.client.get('red-marble-counter');
   });
 }
@@ -290,3 +263,5 @@ redMarbleCounter().subscribe(count => console.log('Next: ' + count));
 // Next: 2
 
 ```
+
+For more information on the `database.notifier` attribute, see the [RxNotifier module](https://github.com/jbaudanza/rxnotifier).
