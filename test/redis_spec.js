@@ -6,7 +6,6 @@ import uuid from 'node-uuid';
 
 import RedisDatabase from '../redis';
 
-import {itShouldActLikeANotifier} from './notifier_spec';
 import {itShouldActLikeAnEventStore} from './eventstore_spec';
 
 
@@ -16,7 +15,6 @@ function factory() {
 
 
 describe('RedisDatabase', () => {
-  itShouldActLikeANotifier(factory);
   itShouldActLikeAnEventStore(factory);
 
   describe('.runProjection', () => {
@@ -45,7 +43,7 @@ describe('RedisDatabase', () => {
       }
 
       let stop = db.runProjection(projectionKey, resumable, logSubject);
-      const members = db.channel(key)
+      const members = db.notifier.channel(key)
           .flatMap(() => db.clients.global.smembers(key));
 
       return members

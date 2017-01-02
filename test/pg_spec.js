@@ -4,8 +4,8 @@ import uuid from 'node-uuid';
 import {times} from 'lodash';
 import Rx from 'rxjs';
 import PgDatabase from '../lib/database/pg';
+import {configFromURL} from '../lib/database/pg';
 
-import {itShouldActLikeANotifier} from './notifier_spec';
 import {itShouldActLikeAnEventStore} from './eventstore_spec';
 
 
@@ -22,17 +22,6 @@ function wait(ms) {
 }
 
 describe('PgDatabase', () => {
-  it('should configure the database connection', () => {
-    const url = 'postgres://user:password@localhost/database_name';
-    const db = new PgDatabase(url, {ssl: true});
-    assert.deepEqual(db.config, { host: 'localhost',
-        database: 'database_name',
-        ssl: true,
-        user: 'user',
-        password: 'password'
-    });
-  });
-
   it('should return all connections to the pool', () => {
     const key = uuid.v4();
     const db = factory();
@@ -42,28 +31,23 @@ describe('PgDatabase', () => {
     // Helpful for debugging pool issues
     //db.pool.pool._factory.log = function(str) { console.log(str); }
 
-    function assertEmpty() {
-      // TODO: If db-pool ever upgrades it's dependency on generic-pool to
+    // There should be a single connection allocated for listening for
+    // notifications
+    function assertPoolSize() {
+      // TODO: If pg-pool ever upgrades its dependency on generic-pool to
       // something newer, we can probably stop using this hidden API and use
       // the newer public API. Right now, we're using generic-pool 2.4.2 and the
       // newest is 3.1.1
-      assert.equal(db.pool.pool._inUseObjects.length, 0);
+      assert.equal(db.pool.pool._inUseObjects.length, 1);
     }
-
-    assertEmpty();
 
     return inserts
         .then(() => wait(100))
-        .then(assertEmpty)
+        .then(assertPoolSize)
         .then(() => db.query(key))
-        .then(assertEmpty)
+        .then(assertPoolSize)
         .then(() => db.observable(key).take(1).toPromise())
-        .then(() => db.notifyClient)
-        .then(function(client) {
-          delete db.notifyClient;
-          client.release();
-          assertEmpty();
-        });
+        .then(assertPoolSize);
   });
 
   describe(".shouldThrottle", () => {
@@ -87,6 +71,18 @@ describe('PgDatabase', () => {
     });
   });
 
-  itShouldActLikeANotifier(factory);
   itShouldActLikeAnEventStore(factory);
+});
+
+describe('configFromURL', () => {
+  it('should work', () => {
+    const url = 'postgres://user:password@localhost/database_name';
+    assert.deepEqual(configFromURL(url), {
+        host: 'localhost',
+        database: 'database_name',
+        user: 'user',
+        ssl: false,
+        password: 'password'
+    });
+  });
 });

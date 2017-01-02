@@ -3,14 +3,13 @@ import url from 'url';
 import Rx from 'rxjs';
 import Pool from 'pg-pool';
 import pg from 'pg';
-import {mapKeys, identity, maxBy, last, includes} from 'lodash';
+import {mapKeys, identity, last, includes} from 'lodash';
 
 import processId from '../processId';
 import {toSQL} from './filters';
 import streamQuery from './streamQuery';
 
-
-const {escapeIdentifier, escapeLiteral} = pg.Client.prototype;
+import PgNotifier from 'rxnotifier/pg_notifier';
 
 
 export default class PgDatabase {
@@ -27,64 +26,7 @@ export default class PgDatabase {
     }
 
     this.pool = new Pool(this.config);
-  }
-
-  channel(key) {
-    // Keep one connection open for notifications
-    if (!this.notifyClient) {
-      this.notifyClient = this.pool.connect();
-    }
-
-    return Rx.Observable.fromPromise(this.notifyClient).flatMap(function(client) {
-      return Rx.Observable.create(function(observer) {
-
-        if (!('subscriptionRefCounts' in client)) {
-          client.subscriptionRefCounts = {};
-        }
-
-        if (!(key in client.subscriptionRefCounts)) {
-          client.subscriptionRefCounts[key] = 0;
-        }
-
-        if (client.subscriptionRefCounts[key] === 0) {
-          client.query('LISTEN ' + escapeIdentifier(key)).then(
-              function() { observer.next('ready'); },
-              function(err) { observer.error(err); }
-          )
-        } else {
-          observer.next('ready');
-        }
-
-        client.subscriptionRefCounts[key]++;
-
-        function listener(event) {
-          if (event.channel === key) {
-            observer.next(event.payload);
-          }      
-        }
-
-        client.on('notification', listener);
-
-        return function() {
-          client.subscriptionRefCounts[key]--;
-
-          if (client.subscriptionRefCounts[key] === 0) {
-            client.query('UNLISTEN ' + escapeIdentifier(key));
-          }
-          client.removeListener('notification', listener);
-        };
-      });
-    });
-  }
-
-  notify(channel, message) {
-    let cmd = 'NOTIFY ' + escapeIdentifier(channel);
-
-    if (message) {
-      cmd += ", " + escapeLiteral(message);
-    }
-
-    return this.pool.query(cmd);
+    this.notifier = new PgNotifier(this.pool);
   }
 
   query(key, options={}) {
@@ -162,7 +104,7 @@ export default class PgDatabase {
       transformFn = (results) => results.value;
     }
 
-    const channel = this.channel(key);
+    const channel = this.notifier.channel(key);
 
     return streamQuery(runQuery.bind(this), channel, options.cursor, nextCursor, identity)
         .filter(result => result.value.length > 0)
@@ -196,7 +138,7 @@ export default class PgDatabase {
         ))
       )
 
-      persisted.then(() => this.notify(key));
+      persisted.then(() => this.notifier.notify(key));
 
       persisted.then(done, done);
 
@@ -249,7 +191,7 @@ const INSERT_SQL = `
 `;
 
 
-function configFromURL(urlString) {
+export function configFromURL(urlString) {
   const params = url.parse(urlString);
 
   const config = {

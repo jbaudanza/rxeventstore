@@ -2231,6 +2231,13 @@ rxjs@^5.0.0:
   dependencies:
     symbol-observable "^1.0.1"
 
+rxnotifier@^0.0.2:
+  version "0.0.2"
+  resolved "https://registry.yarnpkg.com/rxnotifier/-/rxnotifier-0.0.2.tgz#03e541e786d76774214422fb51fb16d099b14c4e"
+  dependencies:
+    babel-polyfill "^6.9.1"
+    rxjs "^5.0.0"
+
 semver@~5.3.0:
   version "5.3.0"
   resolved "https://registry.yarnpkg.com/semver/-/semver-5.3.0.tgz#9b2ce5d3de02d17c6012ad326aa6b4d0cf54f94f"

@@ -1,12 +1,14 @@
 import redisDriver from 'redis';
 import Rx from 'rxjs';
 
+import RedisNotifier from 'rxnotifier/redis_notifier';
+
 import processId from '../processId';
 import streamQuery from './streamQuery';
 
 import {identity, pick, last} from 'lodash';
 import {toFunction} from './filters';
-import promisify from '../promisify';
+
 
 import RedisConnections from './redis_connections';
 
@@ -75,57 +77,10 @@ export default class RedisDatabase {
   constructor(url, driver=redisDriver) {
     this.clients = new RedisConnections(url, driver);
     this.client = this.clients.global;
-  }
 
-  channel(key) {
-    return Rx.Observable.create((observer) => {
-      if (!('subscriptionRefCounts' in this.clients.subscriptions)) {
-        this.clients.subscriptions.subscriptionRefCounts = {};
-      }
-
-      if (!(key in this.clients.subscriptions.subscriptionRefCounts)) {
-        this.clients.subscriptions.subscriptionRefCounts[key] = 0;
-      }
-
-      if (this.clients.subscriptions.subscriptionRefCounts[key] === 0) {
-        this.clients.subscriptions.subscribe(key, onReady);
-      } else {
-        onReady(null, null);
-      }
-
-      this.clients.subscriptions.subscriptionRefCounts[key]++;
-
-      function onReady(err, result) {
-        if (err)
-          observer.error(err);
-        else
-          observer.next('ready');
-      }
-
-      function listener(channel, message) {
-        if (channel === key) {
-          observer.next(message);
-        }
-      }
-
-      this.clients.subscriptions.on('message', listener);
-
-      return () => {
-        this.clients.subscriptions.subscriptionRefCounts[key]--;
-
-        if (this.clients.subscriptions.subscriptionRefCounts[key] === 0) {
-          this.clients.subscriptions.unsubscribe(key);
-        }
-        this.clients.subscriptions.removeListener('message', listener);
-      };
-    });
-  }
-
-  notify(key, message) {
-    if (typeof message === 'undefined')
-        message = '';
-
-    return this.clients.global.publish(key, message);
+    this.notifier = new RedisNotifier(
+        this.clients.global, this.clients.subscriptions
+    );
   }
 
   insertEvent(key, event, meta={}) {
@@ -152,7 +107,7 @@ export default class RedisDatabase {
     });
 
     promise.then(() => {
-      this.notify(key);
+      this.notifier.notify(key);
     });
 
     return promise;
@@ -187,7 +142,7 @@ export default class RedisDatabase {
 
     return streamQuery(
         query,
-        this.channel(key),
+        this.notifier.channel(key),
         (options.cursor || 0),
         nextCursor,
         transformResults
@@ -197,7 +152,7 @@ export default class RedisDatabase {
   }
 
   runProjection(key, resumable, logObserver) {
-    const notify = this.notify.bind(this);
+    const notify = this.notifier.notify.bind(this.notifier);
     const pool = this.clients.pool;
     const redis = this.clients.global;
 
