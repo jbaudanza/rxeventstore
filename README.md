@@ -11,7 +11,7 @@ RxEventStore is designed to be used in concert with [RxRemote](https://github.co
 
 ## Installing with [NPM](https://www.npmjs.com/)
 
-```bash`
+```bash
 $ npm install rxeventstore
 ```
 
